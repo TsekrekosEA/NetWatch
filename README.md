@@ -2,51 +2,11 @@
 
 A two-stage network intrusion detection system combining statistical baselining with ML anomaly scoring, live WebSocket streaming, IP threat intelligence enrichment, and a Prometheus/Grafana observability stack — built around real packet capture and the CIC-IDS-2018 benchmark dataset.
 
+![demo](images/demo.png)
+
 ## Architecture
 
-```
-┌─────────────────────┐         ┌──────────────────────────────────────────────────┐
-│  Capture Service    │  HTTP   │  Backend (FastAPI)                               │
-│                     │  POST   │                                                  │
-│  Scapy / libpcap    ├────────►│  ┌────────────────────────────────────────────┐  │
-│  Demo Mode          │         │  │  Detection Pipeline                        │  │
-│  PCAP Replay        │         │  │                                            │  │
-│                     │         │  │  Stage 1: Statistical Baseline             │  │
-│  Flow Engine        │         │  │  (z-score rolling window)                  │  │
-│  (5-tuple →         │         │  │            │                               │  │
-│   20-dim vector)    │         │  │  Stage 2: ML Classifier                    │  │
-│                     │         │  │  (Isolation Forest + Random Forest)        │  │
-│  Async publisher    │         │  └──────────┬─────────────────────────────────┘  │
-│  (bg queue, no      │         │             │                                    │
-│   lock contention)  │         │  ┌──────────▼──────────┐   ┌─────────────────┐  │
-└─────────────────────┘         │  │  SQLite (WAL)        │   │  WebSocket      │  │
-                                │  │  Alert Store         │   │  Broadcast      │  │
-                                │  └──────────────────────┘   └────────┬────────┘  │
-                                │                                       │           │
-                                │  Rate limiter (per src_ip+category)  │           │
-                                │  IP threat intel (ip-api + AbuseIPDB)│           │
-                                │  Prometheus metrics (/metrics)        │           │
-                                └───────────────────────────────────────┼───────────┘
-                                                                        │
-                                ┌───────────────────────────────────────▼───────────┐
-                                │  React Dashboard (TypeScript + Vite)              │
-                                │                                                   │
-                                │  StatsBar (cards + sparklines)                    │
-                                │  TrafficChart (area + gradient fills)             │
-                                │  ProtocolBreakdown (pie chart)                    │
-                                │  ThreatHeatmap (bar chart with gradient)          │
-                                │  AlertFeed (severity filter, IP search, CSV)      │
-                                │  AlertDetailModal (forensics, z-score chips,      │
-                                │    ML data, IP intel, related alerts)             │
-                                │  CriticalAlertToast (auto-dismiss notifications)  │
-                                └───────────────────────────────────────────────────┘
-                                         ▲ scrapes /metrics
-                                ┌────────┴──────────────────┐
-                                │  Prometheus + Grafana      │
-                                │  (pre-built NetWatch       │
-                                │   dashboard, auto-refresh) │
-                                └────────────────────────────┘
-```
+![diagram](images/netwatch_diagram.png)
 
 ## How It Works
 
