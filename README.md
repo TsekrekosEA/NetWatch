@@ -11,26 +11,35 @@ A two-stage network intrusion detection system combining statistical baselining 
 │                 ├────────►│  ┌───────────────────────────────────────┐  │
 │  Scapy/libpcap  │         │  │  Detection Pipeline                  │  │
 │  or Demo Mode   │         │  │                                       │  │
-│                 │         │  │  Stage 1: Statistical Baseline        │  │
-│  Flow Engine    │         │  │  (z-score rolling window)             │  │
-│  (5-tuple →     │         │  │            │                          │  │
-│   20-dim vector)│         │  │  Stage 2: ML Classifier               │  │
-└─────────────────┘         │  │  (Isolation Forest + Random Forest)   │  │
-                            │  └───────────┬───────────────────────────┘  │
+│  or PCAP Replay │         │  │  Stage 1: Statistical Baseline        │  │
+│                 │         │  │  (z-score rolling window)             │  │
+│  Flow Engine    │         │  │            │                          │  │
+│  (5-tuple →     │         │  │  Stage 2: ML Classifier               │  │
+│   20-dim vector)│         │  │  (Isolation Forest + Random Forest)   │  │
+└─────────────────┘         │  └───────────┬───────────────────────────┘  │
                             │              │                              │
-                            │     ┌────────▼────────┐   ┌────────────┐   │
-                            │     │  SQLite (WAL)   │   │ WebSocket  │   │
-                            │     │  Alert Store    │   │ Broadcast  │   │
-                            │     └─────────────────┘   └─────┬──────┘   │
-                            └─────────────────────────────────┼──────────┘
-                                                              │
-                            ┌─────────────────────────────────▼──────────┐
-                            │  Frontend (React + TypeScript)             │
-                            │                                            │
-                            │  Live Alert Feed  │  Traffic Charts        │
-                            │  Stats Overview   │  Threat Heatmap        │
-                            │  Protocol Breakdown │ Category Analysis    │
-                            └────────────────────────────────────────────┘
+  Async publisher           │     ┌────────▼────────┐   ┌────────────┐   │
+  (background queue,        │     │  SQLite (WAL)   │   │ WebSocket  │   │
+   never blocks the         │     │  Alert Store    │   │ Broadcast  │   │
+   flow engine lock)        │     └─────────────────┘   └─────┬──────┘   │
+                            │                                  │          │
+                            │  Alert rate limiter (per-IP      │          │
+                            │  dedup within configurable       │          │
+                            │  time window)                    │          │
+                            └──────────────────────────────────┼──────────┘
+                                                               │
+                            ┌──────────────────────────────────▼──────────┐
+                            │  Frontend (React + TypeScript)              │
+                            │                                             │
+                            │  Live Alert Feed    │  Traffic Charts       │
+                            │  (severity filter,  │  (area + gradient)    │
+                            │   IP search, CSV    │                       │
+                            │   export)           │  Threat Heatmap       │
+                            │                     │                       │
+                            │  Alert Detail Modal │  Protocol Breakdown   │
+                            │  (forensics, related│  Stats + Sparklines   │
+                            │   alerts, ML data)  │                       │
+                            └─────────────────────────────────────────────┘
 ```
 
 ## How It Works
@@ -44,7 +53,7 @@ Each incoming network flow is represented as a 20-dimensional feature vector (by
 Two models trained on the CIC-IDS-2018 dataset:
 
 - **Isolation Forest** (unsupervised): Trained on benign traffic only. Models how easily a point can be isolated from the cluster of normal behaviour — anomalies are easy to isolate.
-- **Random Forest** (supervised): Trained on all 14 labelled attack categories. Provides specific attack classification for known signatures.
+- **Random Forest** (supervised): Trained on all 14 labelled attack categories. Provides specific attack classification for known signatures. Low-confidence predictions (below `RF_CONFIDENCE_THRESHOLD`) are suppressed to reduce false positives.
 
 The two stages are complementary: Stage 1 catches volume anomalies instantly; Stage 2 catches pattern-based attacks that look normal by volume (slow scans, brute force, C2 beaconing).
 
@@ -66,6 +75,7 @@ The ML stage uses the same vector-distance intuition as approximate nearest neig
 | Real-time push | WebSocket | Low-latency alert streaming |
 | Frontend | React + TypeScript + Vite | Live dashboard with Recharts |
 | Containers | Docker + docker-compose | One command to run everything |
+| Tests | pytest + pytest-asyncio | 50 tests covering pipeline, models, API |
 
 ## Quick Start — Demo Mode
 
@@ -96,6 +106,27 @@ docker compose up --build
 open http://localhost:5174
 ```
 
+## Quick Start — PCAP Replay Mode
+
+Replay recorded `.pcap` / `.pcapng` files through the full detection pipeline:
+
+```bash
+# 1. Configure
+cp .env.example .env
+# Edit .env:
+#   DEMO_MODE=false
+#   REPLAY_PCAP=/data/your-capture.pcap
+#   REPLAY_SPEED=10.0   (10x real-time speed)
+#   REPLAY_LOOP=true     (loop for continuous demo)
+
+# 2. Mount your PCAP file into the capture container (docker-compose.yml)
+# volumes:
+#   - ./your-capture.pcap:/data/your-capture.pcap
+
+# 3. Start
+docker compose up --build
+```
+
 ## Training the ML Models
 
 The ML stage is optional — the system works with statistical detection alone. To enable ML classification:
@@ -107,13 +138,29 @@ The ML stage is optional — the system works with statistical detection alone. 
 # 2. Train models
 cd backend
 pip install -r requirements.txt
-python -m ml.train
+python3 -m ml.train
 
 # 3. Evaluate
-python -m ml.evaluate
+python3 -m ml.evaluate
 
 # 4. Models are saved to backend/ml/models/ and loaded automatically on startup
 ```
+
+## Running Tests
+
+```bash
+cd backend
+pip install pytest pytest-asyncio
+python3 -m pytest tests/ -v
+```
+
+The test suite covers:
+- **test_stage1.py** — Rolling baseline z-score detection, warmup behaviour, severity thresholds, anomaly classification
+- **test_stage2.py** — ML classifier loading, prediction, confidence gating, class-severity mapping
+- **test_severity.py** — Severity combination logic, stage merging, Unknown Anomaly fallback
+- **test_pipeline.py** — Alert rate limiting / deduplication
+- **test_models.py** — Database insert/query, pagination, filtering (severity, category, IP)
+- **test_api.py** — REST endpoint responses, auth token enforcement, CSV export, stats
 
 ## Performance Metrics
 
@@ -142,6 +189,44 @@ Per-class breakdown:
 | False positive rate | **0.96%** |
 | Detection rate | 0.19% (expected — trained only on benign baseline) |
 
+## Environment Variables
+
+### Backend
+
+| Variable | Default | Description |
+|---|---|---|
+| `CAPTURE_TOKEN` | `change-me-in-production` | Shared auth token between capture and backend |
+| `ML_MODELS_PATH` | `./ml/models` | Path to trained model files |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
+| `STAT_THRESHOLD` | `3.5` | Z-score threshold for statistical anomaly |
+| `ROLLING_WINDOW_SIZE` | `1000` | Number of flows in the rolling baseline window |
+| `STAT_WARMUP` | `30` | Minimum samples before statistical detection activates |
+| `SEVERITY_MEDIUM_THRESHOLD` | `3` | Number of anomalous features for MEDIUM severity |
+| `SEVERITY_HIGH_THRESHOLD` | `6` | Number of anomalous features for HIGH severity |
+| `IF_THRESHOLD` | `-0.2` | Isolation Forest anomaly score cutoff |
+| `RF_CONFIDENCE_THRESHOLD` | `0.4` | Minimum RF probability to trust classification |
+| `ALERT_RATE_LIMIT_SECONDS` | `10` | Suppress duplicate alerts per (src_ip + category) within this window |
+
+### Capture Service
+
+| Variable | Default | Description |
+|---|---|---|
+| `DEMO_MODE` | `true` | Enable synthetic traffic generation |
+| `REPLAY_PCAP` | _(empty)_ | Path to PCAP file for replay mode (overrides demo) |
+| `REPLAY_SPEED` | `10.0` | Replay speed multiplier (10 = 10x real-time) |
+| `REPLAY_LOOP` | `false` | Loop the PCAP file for continuous demo |
+| `INTERFACE` | `eth0` | Network interface for live capture |
+| `BPF_FILTER` | `ip` | BPF filter expression for packet capture |
+| `FLOW_TIMEOUT` | `120` | Seconds before an idle flow is expired |
+| `MAX_FLOW_PACKETS` | `10000` | Max packets per flow before forced emission |
+
+### Frontend
+
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:8000` | Backend REST API base URL |
+| `VITE_WS_URL` | `ws://localhost:8000` | Backend WebSocket base URL |
+
 ## Project Structure
 
 ```
@@ -149,33 +234,56 @@ netwatch/
 ├── docker-compose.yml           # Orchestrates all services
 ├── .env.example                 # Environment configuration template
 ├── capture/                     # Packet capture + flow engine
-│   ├── main.py                  # Entrypoint (live or demo mode)
-│   ├── capture.py               # Scapy live packet sniffer
-│   ├── flow_engine.py           # 5-tuple flow assembly + feature tracking
+│   ├── main.py                  # Entrypoint (demo / live / pcap replay)
+│   ├── capture.py               # Scapy live packet sniffer (w/ BPF filter)
+│   ├── flow_engine.py           # 5-tuple flow assembly + bounded flow table
 │   ├── features.py              # 20-dimension feature extraction
-│   ├── publisher.py             # HTTP POST to backend ingest
-│   └── demo_traffic.py          # Synthetic traffic + attack patterns
+│   ├── publisher.py             # Async HTTP publisher (background queue)
+│   ├── demo_traffic.py          # Synthetic traffic + attack patterns
+│   └── pcap_replay.py           # PCAP file replay mode
 ├── backend/                     # FastAPI backend
 │   ├── main.py                  # App entrypoint
-│   ├── config.py                # Settings from env vars
+│   ├── config.py                # All settings from env vars
 │   ├── database.py              # SQLite async with WAL mode
-│   ├── models/alert.py          # DB operations for alerts
+│   ├── models/alert.py          # DB operations for alerts + flow stats
 │   ├── schemas/                 # Pydantic schemas (flow, alert)
-│   ├── routers/                 # REST + WebSocket endpoints
+│   ├── routers/
+│   │   ├── ingest.py            # Flow ingestion endpoint
+│   │   ├── alerts.py            # Alert listing, filtering, CSV export
+│   │   └── ws.py                # WebSocket live alert streaming
 │   ├── detection/               # Two-stage detection pipeline
-│   │   ├── pipeline.py          # Orchestrator
+│   │   ├── pipeline.py          # Orchestrator + rate limiter
 │   │   ├── stage1_statistical.py # Z-score rolling baseline
-│   │   ├── stage2_ml.py         # IF + RF classifier wrapper
-│   │   └── severity.py          # Severity scoring logic
-│   └── ml/                      # Offline training scripts
-│       ├── train.py             # Train on CIC-IDS-2018
-│       ├── evaluate.py          # Compute metrics
-│       └── preprocess.py        # Dataset column alignment
+│   │   ├── stage2_ml.py         # IF + RF classifier (w/ confidence gating)
+│   │   └── severity.py          # Severity scoring + stage combination
+│   ├── ml/                      # Offline training scripts
+│   │   ├── train.py             # Train on CIC-IDS-2018
+│   │   ├── evaluate.py          # Compute metrics
+│   │   └── preprocess.py        # Dataset column alignment + label simplification
+│   └── tests/                   # pytest test suite (50 tests)
+│       ├── conftest.py          # Fixtures (test DB, sample data)
+│       ├── test_stage1.py       # Statistical baseline tests
+│       ├── test_stage2.py       # ML classifier tests
+│       ├── test_severity.py     # Severity combination tests
+│       ├── test_pipeline.py     # Rate limiter tests
+│       ├── test_models.py       # DB model tests
+│       └── test_api.py          # API endpoint tests
 ├── frontend/                    # React + TypeScript dashboard
 │   └── src/
 │       ├── hooks/               # WebSocket + polling hooks
 │       ├── pages/Dashboard.tsx  # Main dashboard layout
-│       └── components/          # Alert feed, charts, heatmap
+│       └── components/
+│           ├── AlertFeed.tsx     # Live alert list with animations
+│           ├── AlertToolbar.tsx  # Severity filter, IP search, export
+│           ├── AlertDetailModal.tsx # Full forensic drill-down modal
+│           ├── StatsBar.tsx      # Summary cards + sparklines
+│           ├── TrafficChart.tsx  # Area chart with gradient fills
+│           ├── ProtocolBreakdown.tsx # Protocol pie chart
+│           ├── ThreatHeatmap.tsx # Attack category bar chart
+│           ├── SeverityBadge.tsx # CRITICAL pulsing badge
+│           ├── CriticalAlertToast.tsx # Toast notifications
+│           ├── ErrorBoundary.tsx # React error boundary
+│           └── Skeleton.tsx     # Loading skeleton components
 └── data/                        # CIC-IDS-2018 CSV files (gitignored)
 ```
 
@@ -184,8 +292,9 @@ netwatch/
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/ingest` | Receive flow from capture service |
-| GET | `/alerts` | Paginated alert history |
+| GET | `/alerts` | Paginated alert history (filters: `severity`, `category`, `src_ip`, `since`, `until`) |
 | GET | `/alerts/recent` | Last N alerts |
+| GET | `/alerts/export` | CSV export with optional filters |
 | GET | `/stats/summary` | Dashboard summary statistics |
 | GET | `/stats/timeline` | Per-minute bucketed timeline |
 | WS | `/ws/alerts` | Live alert + stats streaming |

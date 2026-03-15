@@ -1,9 +1,11 @@
 import { useState, useMemo, useCallback } from "react";
+import type { Alert } from "../hooks/useAlertStream";
 import { useAlertStream } from "../hooks/useAlertStream";
 import { useStats } from "../hooks/useStats";
 import { StatsBar } from "../components/StatsBar";
 import { AlertToolbar } from "../components/AlertToolbar";
 import { AlertFeed } from "../components/AlertFeed";
+import { AlertDetailModal } from "../components/AlertDetailModal";
 import { TrafficChart } from "../components/TrafficChart";
 import { ProtocolBreakdown } from "../components/ProtocolBreakdown";
 import { ThreatHeatmap } from "../components/ThreatHeatmap";
@@ -21,6 +23,9 @@ export function Dashboard() {
   // Filter state
   const [severityFilter, setSeverityFilter] = useState("ALL");
   const [ipFilter, setIpFilter] = useState("");
+
+  // Modal state
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
 
   const filteredAlerts = useMemo(() => {
     let result = alerts;
@@ -49,6 +54,16 @@ export function Dashboard() {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <CriticalAlertToast alerts={alerts} />
+
+      {/* Alert detail modal */}
+      {selectedAlert && (
+        <AlertDetailModal
+          alert={selectedAlert}
+          allAlerts={alerts}
+          onClose={() => setSelectedAlert(null)}
+        />
+      )}
+
       {/* Header */}
       <header className="flex items-center justify-between border-b border-gray-800 bg-surface-card px-6 py-3">
         <div className="flex items-center gap-3">
@@ -99,7 +114,10 @@ export function Dashboard() {
             totalCount={alerts.length}
             filteredCount={filteredAlerts.length}
           />
-          <AlertFeed alerts={filteredAlerts} />
+          <AlertFeed
+            alerts={filteredAlerts}
+            onAlertSelect={setSelectedAlert}
+          />
         </div>
 
         {/* Right panel: Traffic / Threats tabs */}

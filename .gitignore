@@ -1,4 +1,12 @@
 data/
-models/
 __pycache__/
 node_modules/
+*.pyc
+.env
+.pytest_cache/
+.hypothesis/
+backend/netwatch.db
+backend/ml/models/
+frontend/dist/
+*.pcap
+*.pcapng

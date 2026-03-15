@@ -22,19 +22,54 @@ logger = logging.getLogger("netwatch.capture")
 def main() -> None:
     """Select capture mode and start the pipeline."""
     demo_mode = os.environ.get("DEMO_MODE", "true").lower() in ("true", "1", "yes")
+    replay_pcap = os.environ.get("REPLAY_PCAP", "")
     backend_url = os.environ.get("BACKEND_URL", "http://backend:8000")
     capture_token = os.environ.get("CAPTURE_TOKEN", "change-me-in-production")
 
+    mode_label = "REPLAY" if replay_pcap else ("DEMO" if demo_mode else "LIVE")
     logger.info("=" * 60)
     logger.info("NetWatch Capture Service")
-    logger.info("  Mode:       %s", "DEMO" if demo_mode else "LIVE")
+    logger.info("  Mode:       %s", mode_label)
     logger.info("  Backend:    %s", backend_url)
+    if replay_pcap:
+        logger.info("  PCAP file:  %s", replay_pcap)
     logger.info("=" * 60)
 
     # Wait for backend to be ready
     _wait_for_backend(backend_url)
 
-    if demo_mode:
+    if replay_pcap:
+        from flow_engine import FlowEngine
+        from publisher import FlowPublisher
+        from pcap_replay import PcapReplay
+
+        publisher = FlowPublisher(backend_url, capture_token)
+        flow_timeout = int(os.environ.get("FLOW_TIMEOUT", "120"))
+        max_packets = int(os.environ.get("MAX_FLOW_PACKETS", "10000"))
+        engine = FlowEngine(
+            publisher=publisher,
+            flow_timeout=flow_timeout,
+            max_flow_packets=max_packets,
+        )
+
+        speed = float(os.environ.get("REPLAY_SPEED", "10.0"))
+        loop = os.environ.get("REPLAY_LOOP", "false").lower() in ("true", "1", "yes")
+        replayer = PcapReplay(
+            pcap_path=replay_pcap,
+            flow_engine=engine,
+            speed=speed,
+            loop=loop,
+        )
+
+        def _handle_sigterm(signum, frame):
+            logger.info("SIGTERM received — shutting down gracefully.")
+            replayer.stop()
+            sys.exit(0)
+
+        signal.signal(signal.SIGTERM, _handle_sigterm)
+        replayer.start()
+
+    elif demo_mode:
         from demo_traffic import DemoTrafficGenerator
         generator = DemoTrafficGenerator(backend_url, capture_token)
         generator.run()

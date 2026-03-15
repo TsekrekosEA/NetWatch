@@ -4,9 +4,10 @@ import { SeverityBadge } from "./SeverityBadge";
 
 interface AlertFeedProps {
   alerts: Alert[];
+  onAlertSelect?: (alert: Alert) => void;
 }
 
-export function AlertFeed({ alerts }: AlertFeedProps) {
+export function AlertFeed({ alerts, onAlertSelect }: AlertFeedProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [unseenCount, setUnseenCount] = useState(0);
@@ -143,6 +144,17 @@ export function AlertFeed({ alerts }: AlertFeedProps) {
                       <pre className="mt-2 max-h-40 overflow-auto rounded bg-gray-900 p-2 text-[10px] leading-relaxed">
                         {JSON.stringify(alert.details, null, 2)}
                       </pre>
+                    )}
+                    {onAlertSelect && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAlertSelect(alert);
+                        }}
+                        className="mt-2 rounded border border-blue-800/50 bg-blue-900/20 px-3 py-1 text-[11px] font-medium text-blue-300 transition-colors hover:bg-blue-900/40"
+                      >
+                        View Full Details
+                      </button>
                     )}
                   </div>
                 </div>
