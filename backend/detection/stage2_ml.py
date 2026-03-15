@@ -15,22 +15,13 @@ import joblib
 
 logger = logging.getLogger("netwatch.detection.stage2")
 
-# Attack class → severity mapping
+# Attack class → severity mapping (matches simplified labels from training)
 _CLASS_SEVERITY: dict[str, str] = {
     "Benign": "NONE",
-    "DoS attacks-Hulk": "CRITICAL",
-    "DoS attacks-SlowHTTPTest": "CRITICAL",
-    "DoS attacks-Slowloris": "CRITICAL",
-    "DoS attacks-GoldenEye": "CRITICAL",
-    "DDoS attacks-LOIC-HTTP": "CRITICAL",
-    "DDoS attacks-LOIC-UDP": "CRITICAL",
-    "FTP-BruteForce": "HIGH",
-    "SSH-Bruteforce": "HIGH",
-    "Brute Force -Web": "HIGH",
-    "Brute Force -XSS": "MEDIUM",
-    "SQL Injection": "MEDIUM",
-    "Infilteration": "CRITICAL",
-    "Bot": "HIGH",
+    "DoS": "CRITICAL",
+    "DDoS": "CRITICAL",
+    "BruteForce": "HIGH",
+    "Infiltration": "HIGH",
 }
 
 
@@ -89,7 +80,7 @@ class MLClassifier:
 
             # Isolation Forest: negative scores indicate anomalies
             if_score = float(self.isolation_forest.decision_function(X_scaled)[0])
-            if_anomalous = if_score < -0.1
+            if_anomalous = if_score < -0.2
 
             # Random Forest classification
             rf_class = self.random_forest.predict(X_scaled)[0]

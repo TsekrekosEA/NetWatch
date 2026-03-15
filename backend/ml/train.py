@@ -42,8 +42,12 @@ def main() -> None:
     logger.info("Loading CIC-IDS-2018 data from %s …", DATA_DIR)
     df = load_cic_csvs(DATA_DIR)
 
-    X = df[FEATURE_COLUMNS].values.astype(np.float64)
-    y = df["label"].values
+    # Drop rows where the label is a header artefact (e.g. "Label")
+    valid_mask = ~df["label"].isin(["Label", "label", ""])
+    df = df[valid_mask].reset_index(drop=True)
+
+    X = df[FEATURE_COLUMNS].to_numpy(dtype=np.float64, na_value=0.0)
+    y = df["label"].to_numpy()
 
     logger.info("Dataset shape: %s", X.shape)
     logger.info("Class distribution:")

@@ -35,7 +35,9 @@ CIC_COLUMN_MAP: dict[str, str] = {
     "Fwd Header Length": "_fwd_header_len",
     "Fwd Header Len": "_fwd_header_len",
     "Flow Bytes/s": "_flow_bytes_per_s",
+    "Flow Byts/s": "_flow_bytes_per_s",
     "Flow Packets/s": "_flow_packets_per_s",
+    "Flow Pkts/s": "_flow_packets_per_s",
     "Flow IAT Mean": "mean_iat_fwd",
     "Flow IAT Std": "std_iat_fwd",
     "Fwd IAT Mean": "mean_iat_fwd",
@@ -54,6 +56,7 @@ CIC_COLUMN_MAP: dict[str, str] = {
     "PSH Flag Cnt": "psh_flag_count",
     "Average Packet Size": "mean_packet_length",
     "Pkt Size Avg": "mean_packet_length",
+    "Pkt Len Mean": "mean_packet_length",
     "Packet Length Std": "std_packet_length",
     "Pkt Len Std": "std_packet_length",
     "Label": "label",
@@ -140,11 +143,19 @@ def _align_columns(df: pd.DataFrame) -> Optional[pd.DataFrame]:
         return None
 
     df = df.rename(columns=rename_map)
+
+    # Drop duplicate columns (multiple CIC columns may map to the same name)
+    df = df.loc[:, ~df.columns.duplicated(keep="first")]
     return df
 
 
 def _clean_data(df: pd.DataFrame) -> pd.DataFrame:
     """Replace infinities with column max, NaN with 0, negatives with abs."""
+    # Force all feature columns to numeric (CIC CSVs sometimes have mixed types)
+    for col in FEATURE_COLUMNS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
     numeric_cols = df.select_dtypes(include=[np.number]).columns
 
     # Replace inf / -inf with NaN first, then fill
@@ -171,6 +182,10 @@ def _clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
 def _derive_missing_features(df: pd.DataFrame) -> pd.DataFrame:
     """Derive features that may not exist directly in the CIC dataset."""
+    # Ensure duration is numeric for division
+    if "duration" in df.columns:
+        df["duration"] = pd.to_numeric(df["duration"], errors="coerce").fillna(0)
+
     # fwd_byte_rate and bwd_byte_rate from totals and duration
     if "fwd_byte_rate" not in df.columns:
         if "total_fwd_bytes" in df.columns and "duration" in df.columns:
@@ -202,6 +217,38 @@ def _ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
             logger.warning("Feature '%s' not found in data — filling with 0", col)
             df[col] = 0.0
 
+    # Simplify labels to our detection categories
+    if "label" in df.columns:
+        df["label"] = df["label"].map(_simplify_label)
+        logger.info("Label distribution after simplification:")
+        for lbl, cnt in df["label"].value_counts().items():
+            logger.info("  %-20s %d", lbl, cnt)
+
     # Keep only our features + label
     keep = FEATURE_COLUMNS + (["label"] if "label" in df.columns else [])
     return df[keep].copy()
+
+
+# Map CIC-IDS-2018 fine-grained labels → our coarser categories
+_LABEL_MAP: dict[str, str] = {
+    "Benign": "Benign",
+    "DDOS attack-HOIC": "DDoS",
+    "DDOS attack-LOIC-UDP": "DDoS",
+    "DDoS attacks-LOIC-HTTP": "DDoS",
+    "DoS attacks-GoldenEye": "DoS",
+    "DoS attacks-Hulk": "DoS",
+    "DoS attacks-SlowHTTPTest": "DoS",
+    "DoS attacks-Slowloris": "DoS",
+    "Infilteration": "Benign",
+    "Infiltration": "Benign",
+    "SSH-Bruteforce": "BruteForce",
+    "FTP-BruteForce": "BruteForce",
+    "Brute Force -Web": "BruteForce",
+    "Brute Force -XSS": "BruteForce",
+    "SQL Injection": "BruteForce",
+}
+
+
+def _simplify_label(label: str) -> str:
+    """Map a CIC-IDS-2018 label to our simplified category."""
+    return _LABEL_MAP.get(label, label)

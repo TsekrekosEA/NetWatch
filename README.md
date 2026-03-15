@@ -74,10 +74,10 @@ The ML stage uses the same vector-distance intuition as approximate nearest neig
 cp .env.example .env
 
 # 2. Start all services
-docker-compose up --build
+docker compose up --build
 
 # 3. Open the dashboard
-open http://localhost:5173
+open http://localhost:5174
 ```
 
 The demo mode generates synthetic benign traffic (~50 flows/min) with periodic injected attacks (port scans, SYN floods, SSH brute force, DNS floods) — no root privileges or live network needed.
@@ -90,10 +90,10 @@ cp .env.example .env
 # Edit .env: set DEMO_MODE=false, INTERFACE=<your_interface>
 
 # 2. Start (requires root/NET_ADMIN for packet capture)
-docker-compose up --build
+docker compose up --build
 
 # 3. Open the dashboard
-open http://localhost:5173
+open http://localhost:5174
 ```
 
 ## Training the ML Models
@@ -117,14 +117,30 @@ python -m ml.evaluate
 
 ## Performance Metrics
 
-*Run `python -m ml.evaluate` after training and fill in your numbers:*
+Trained on **4,089,895 flows** from the CIC-IDS-2018 dataset (80/20 train/test split):
+
+### Random Forest (supervised multi-class)
 
 | Metric | Value |
 |---|---|
-| Overall accuracy | TBD |
-| DoS/DDoS detection rate | TBD |
-| Brute force detection rate | TBD |
-| Benign false positive rate | TBD |
+| Overall accuracy | **90.91%** |
+| Weighted F1 score | **0.91** |
+| Benign false positive rate | **3.21%** |
+
+Per-class breakdown:
+
+| Class | Precision | Recall | F1 |
+|---|---|---|---|
+| Benign | 1.00 | 0.97 | 0.98 |
+| DDoS | 0.72 | 0.94 | 0.82 |
+| DoS | 0.78 | 0.63 | 0.69 |
+
+### Isolation Forest (unsupervised anomaly detection)
+
+| Metric | Value |
+|---|---|
+| False positive rate | **0.96%** |
+| Detection rate | 0.19% (expected — trained only on benign baseline) |
 
 ## Project Structure
 
