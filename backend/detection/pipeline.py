@@ -7,7 +7,9 @@ broadcasts them to WebSocket clients.
 """
 
 import logging
+import time
 
+from config import settings
 from schemas.flow import FlowRecord
 from schemas.alert import IngestResponse
 from detection.stage1_statistical import baseline
@@ -16,6 +18,29 @@ from models.alert import insert_alert
 from routers.ws import broadcast_alert
 
 logger = logging.getLogger("netwatch.detection.pipeline")
+
+# Alert rate limiter: tracks last alert time per (src_ip, category) pair
+_last_alert: dict[tuple[str, str], float] = {}
+
+
+def _is_rate_limited(src_ip: str, category: str) -> bool:
+    """Return True if we recently fired an alert for this src_ip+category."""
+    window = settings.ALERT_RATE_LIMIT_SECONDS
+    if window <= 0:
+        return False
+    key = (src_ip, category)
+    now = time.time()
+    last = _last_alert.get(key, 0.0)
+    if now - last < window:
+        return True
+    _last_alert[key] = now
+    # Prune stale entries every 500 inserts to bound memory
+    if len(_last_alert) > 5000:
+        cutoff = now - window * 2
+        stale = [k for k, v in _last_alert.items() if v < cutoff]
+        for k in stale:
+            del _last_alert[k]
+    return False
 
 
 async def run_pipeline(flow: FlowRecord) -> IngestResponse:
@@ -33,6 +58,14 @@ async def run_pipeline(flow: FlowRecord) -> IngestResponse:
     category, severity, stage = combine_stages(stat_result, ml_result)
 
     if not category:
+        return IngestResponse(alerted=False, severity=None)
+
+    # ── Rate limiting ─────────────────────────────────────────────────
+    if _is_rate_limited(flow.src_ip, category):
+        logger.debug(
+            "Rate-limited alert: %s → %s category=%s",
+            flow.src_ip, flow.dst_ip, category,
+        )
         return IngestResponse(alerted=False, severity=None)
 
     # ── Build anomaly details for the alert ───────────────────────────

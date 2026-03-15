@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useAlertStream } from "../hooks/useAlertStream";
 import { useStats } from "../hooks/useStats";
 import { StatsBar } from "../components/StatsBar";
+import { AlertToolbar } from "../components/AlertToolbar";
 import { AlertFeed } from "../components/AlertFeed";
 import { TrafficChart } from "../components/TrafficChart";
 import { ProtocolBreakdown } from "../components/ProtocolBreakdown";
 import { ThreatHeatmap } from "../components/ThreatHeatmap";
 import { CriticalAlertToast } from "../components/CriticalAlertToast";
+
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 type RightTab = "traffic" | "threats";
 
@@ -14,6 +17,34 @@ export function Dashboard() {
   const { alerts, liveStats, connected } = useAlertStream();
   const { summary, timeline, health, loading } = useStats();
   const [rightTab, setRightTab] = useState<RightTab>("traffic");
+
+  // Filter state
+  const [severityFilter, setSeverityFilter] = useState("ALL");
+  const [ipFilter, setIpFilter] = useState("");
+
+  const filteredAlerts = useMemo(() => {
+    let result = alerts;
+    if (severityFilter !== "ALL") {
+      result = result.filter((a) => a.severity === severityFilter);
+    }
+    if (ipFilter.trim()) {
+      const q = ipFilter.trim().toLowerCase();
+      result = result.filter(
+        (a) =>
+          a.src_ip.toLowerCase().includes(q) ||
+          a.dst_ip.toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [alerts, severityFilter, ipFilter]);
+
+  const handleExportCsv = useCallback(() => {
+    const params = new URLSearchParams();
+    if (severityFilter !== "ALL") params.set("severity", severityFilter);
+    if (ipFilter.trim()) params.set("src_ip", ipFilter.trim());
+    const url = `${API_URL}/alerts/export${params.toString() ? "?" + params.toString() : ""}`;
+    window.open(url, "_blank");
+  }, [severityFilter, ipFilter]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -59,15 +90,16 @@ export function Dashboard() {
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
         {/* Left panel: Alert feed */}
         <div className="flex w-full min-h-[300px] max-h-[50vh] flex-col border-b border-gray-800 lg:max-h-none lg:w-[60%] lg:border-b-0 lg:border-r">
-          <div className="border-b border-gray-800 bg-surface-card px-4 py-2">
-            <h2 className="text-sm font-medium text-gray-300">
-              Alert Feed
-              <span className="ml-2 text-xs text-gray-500">
-                ({alerts.length} alerts)
-              </span>
-            </h2>
-          </div>
-          <AlertFeed alerts={alerts} />
+          <AlertToolbar
+            severityFilter={severityFilter}
+            onSeverityChange={setSeverityFilter}
+            ipFilter={ipFilter}
+            onIpChange={setIpFilter}
+            onExportCsv={handleExportCsv}
+            totalCount={alerts.length}
+            filteredCount={filteredAlerts.length}
+          />
+          <AlertFeed alerts={filteredAlerts} />
         </div>
 
         {/* Right panel: Traffic / Threats tabs */}

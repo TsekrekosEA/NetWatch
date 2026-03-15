@@ -6,6 +6,7 @@ and feed them to the flow engine for assembly into 5-tuple flows.
 """
 
 import logging
+import os
 from typing import Any
 
 from scapy.all import AsyncSniffer, IP, TCP, UDP, ICMP  # type: ignore
@@ -25,10 +26,12 @@ class LiveCapture:
 
     def start(self) -> None:
         """Begin sniffing packets. Blocks until interrupted."""
-        logger.info("Starting packet capture on %s", self.interface)
+        bpf = os.environ.get("BPF_FILTER", "ip")
+        logger.info("Starting packet capture on %s (filter: %s)", self.interface, bpf)
         self._sniffer = AsyncSniffer(
             iface=self.interface,
             prn=self._handle_packet,
+            filter=bpf,
             store=False,
         )
         self._sniffer.start()
@@ -40,10 +43,11 @@ class LiveCapture:
             self.stop()
 
     def stop(self) -> None:
-        """Stop the packet sniffer."""
+        """Stop the packet sniffer and flush flows."""
         if self._sniffer and self._sniffer.running:
             self._sniffer.stop()
-            logger.info("Capture stopped.")
+        self.flow_engine.stop()
+        logger.info("Capture stopped.")
 
     def _handle_packet(self, packet: Any) -> None:
         """Process a single captured packet."""

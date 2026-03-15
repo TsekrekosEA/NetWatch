@@ -91,7 +91,10 @@ async def get_alerts(
     limit: int = 100,
     offset: int = 0,
     severity: Optional[str] = None,
+    category: Optional[str] = None,
+    src_ip: Optional[str] = None,
     since: Optional[float] = None,
+    until: Optional[float] = None,
 ) -> tuple[list[dict], int]:
     """Query alerts with optional filters. Returns (alerts, total_count)."""
     db = await get_db()
@@ -102,9 +105,18 @@ async def get_alerts(
         if severity:
             conditions.append("severity = ?")
             params.append(severity)
+        if category:
+            conditions.append("category = ?")
+            params.append(category)
+        if src_ip:
+            conditions.append("src_ip = ?")
+            params.append(src_ip)
         if since:
             conditions.append("timestamp >= ?")
             params.append(since)
+        if until:
+            conditions.append("timestamp <= ?")
+            params.append(until)
 
         where = ""
         if conditions:

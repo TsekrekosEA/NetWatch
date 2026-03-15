@@ -30,8 +30,15 @@ def combine_stages(
 
     if stat_triggered and ml_triggered:
         severity = higher_severity(stat_result["severity"], ml_result["severity"])
-        # Prefer the ML category when both fire (more specific)
-        category = ml_result["category"] or stat_result["category"]
+        # Prefer ML category unless it's vague ("Unknown Anomaly") and stat is specific
+        ml_cat = ml_result["category"]
+        stat_cat = stat_result["category"]
+        if ml_cat and ml_cat != "Unknown Anomaly":
+            category = ml_cat
+        elif stat_cat and stat_cat != "Statistical Anomaly":
+            category = stat_cat
+        else:
+            category = ml_cat or stat_cat
         return category, severity, "both"
 
     if ml_triggered:

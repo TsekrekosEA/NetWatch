@@ -6,10 +6,13 @@ and a timeline endpoint for the dashboard charts.
 """
 
 import time
+import csv
+import io
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, Query
+from fastapi.responses import StreamingResponse
 
 from database import get_db
 from models.alert import get_alerts, get_recent_alerts
@@ -25,11 +28,15 @@ async def list_alerts(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     severity: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    src_ip: Optional[str] = Query(None),
     since: Optional[float] = Query(None),
+    until: Optional[float] = Query(None),
 ) -> AlertListResponse:
-    """Paginated alert listing with optional severity and time filters."""
+    """Paginated alert listing with optional filters."""
     alerts, total = await get_alerts(
-        limit=limit, offset=offset, severity=severity, since=since,
+        limit=limit, offset=offset, severity=severity,
+        category=category, src_ip=src_ip, since=since, until=until,
     )
     return AlertListResponse(
         alerts=[AlertOut(**a) for a in alerts],
@@ -191,3 +198,40 @@ async def stats_timeline(
         return timeline
     finally:
         await db.close()
+
+
+@router.get("/alerts/export")
+async def export_alerts_csv(
+    severity: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    src_ip: Optional[str] = Query(None),
+    since: Optional[float] = Query(None),
+    until: Optional[float] = Query(None),
+) -> StreamingResponse:
+    """Export alerts as a CSV file with optional filters."""
+    alerts, _ = await get_alerts(
+        limit=10000, offset=0, severity=severity,
+        category=category, src_ip=src_ip, since=since, until=until,
+    )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "id", "timestamp", "src_ip", "dst_ip", "src_port", "dst_port",
+        "protocol", "category", "severity", "stage", "flow_duration",
+        "total_bytes", "total_packets",
+    ])
+    for a in alerts:
+        writer.writerow([
+            a.get("id"), a.get("timestamp"), a.get("src_ip"), a.get("dst_ip"),
+            a.get("src_port"), a.get("dst_port"), a.get("protocol"),
+            a.get("category"), a.get("severity"), a.get("stage"),
+            a.get("flow_duration"), a.get("total_bytes"), a.get("total_packets"),
+        ])
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=netwatch_alerts.csv"},
+    )

@@ -10,12 +10,13 @@ feature vector to the publisher.
 import logging
 import time
 import threading
-from typing import Optional
 
 from features import extract_features
 from publisher import FlowPublisher
 
 logger = logging.getLogger("netwatch.capture.flow_engine")
+
+_MAX_ACTIVE_FLOWS = 50_000
 
 
 class FlowState:
@@ -113,9 +114,16 @@ class FlowEngine:
         """Add a packet to its corresponding flow."""
         key = _canonical_key(src_ip, dst_ip, src_port, dst_port, protocol)
         now = time.time()
+        emit_flow: FlowState | None = None
 
         with self._lock:
             if key not in self._flows:
+                # Cap flow table size — evict oldest flow if full
+                if len(self._flows) >= _MAX_ACTIVE_FLOWS:
+                    oldest_key = min(self._flows, key=lambda k: self._flows[k].last_ts)
+                    evicted = self._flows.pop(oldest_key)
+                    self._emit_flow(oldest_key, evicted)
+
                 self._flows[key] = FlowState(
                     src_ip=key[0],
                     dst_ip=key[1],
@@ -165,8 +173,11 @@ class FlowEngine:
                 should_emit = True
 
             if should_emit:
-                self._emit_flow(key, flow)
-                del self._flows[key]
+                emit_flow = self._flows.pop(key)
+
+        # Emit outside the lock (publisher.send_flow enqueues, never blocks long)
+        if emit_flow is not None:
+            self._emit_flow(key, emit_flow)
 
     def _emit_flow(self, key: tuple, flow: FlowState) -> None:
         """Extract features and publish a completed flow."""
@@ -178,24 +189,30 @@ class FlowEngine:
         while self._running:
             time.sleep(10)
             now = time.time()
-            expired_keys: list[tuple] = []
+            expired: list[tuple[tuple, FlowState]] = []
 
             with self._lock:
-                for key, flow in self._flows.items():
-                    if now - flow.last_ts > self.flow_timeout:
-                        expired_keys.append(key)
-
+                expired_keys = [
+                    key for key, flow in self._flows.items()
+                    if now - flow.last_ts > self.flow_timeout
+                ]
                 for key in expired_keys:
-                    flow = self._flows.pop(key)
-                    self._emit_flow(key, flow)
+                    expired.append((key, self._flows.pop(key)))
 
-            if expired_keys:
-                logger.debug("Expired %d flows", len(expired_keys))
+            # Emit outside the lock
+            for key, flow in expired:
+                self._emit_flow(key, flow)
+
+            if expired:
+                logger.debug("Expired %d flows", len(expired))
 
     def stop(self) -> None:
         """Stop the timeout thread and flush remaining flows."""
         self._running = False
+        remaining: list[tuple[tuple, FlowState]] = []
         with self._lock:
-            for key, flow in list(self._flows.items()):
-                self._emit_flow(key, flow)
+            remaining = list(self._flows.items())
             self._flows.clear()
+        for key, flow in remaining:
+            self._emit_flow(key, flow)
+        self.publisher.stop()

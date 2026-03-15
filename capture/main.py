@@ -8,6 +8,7 @@ variable. Completed flows are posted to the backend ingest endpoint.
 
 import logging
 import os
+import signal
 import sys
 import time
 
@@ -53,6 +54,14 @@ def main() -> None:
             max_flow_packets=max_packets,
         )
         live_capture = LiveCapture(interface=interface, flow_engine=engine)
+
+        # Graceful shutdown on SIGTERM (Docker stop)
+        def _handle_sigterm(signum, frame):
+            logger.info("SIGTERM received — shutting down gracefully.")
+            live_capture.stop()
+            sys.exit(0)
+
+        signal.signal(signal.SIGTERM, _handle_sigterm)
         live_capture.start()
 
 

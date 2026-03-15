@@ -13,6 +13,8 @@ from typing import Optional
 import numpy as np
 import joblib
 
+from config import settings
+
 logger = logging.getLogger("netwatch.detection.stage2")
 
 # Attack class → severity mapping (matches simplified labels from training)
@@ -80,12 +82,15 @@ class MLClassifier:
 
             # Isolation Forest: negative scores indicate anomalies
             if_score = float(self.isolation_forest.decision_function(X_scaled)[0])
-            if_anomalous = if_score < -0.2
+            if_anomalous = if_score < settings.IF_THRESHOLD
 
             # Random Forest classification
             rf_class = self.random_forest.predict(X_scaled)[0]
             rf_proba = self.random_forest.predict_proba(X_scaled)[0]
             rf_confidence = float(rf_proba.max())
+
+            # Low-confidence RF predictions fall back to IF-only logic
+            rf_reliable = rf_confidence >= settings.RF_CONFIDENCE_THRESHOLD
 
             if rf_class == "Benign" and not if_anomalous:
                 return {
@@ -98,7 +103,7 @@ class MLClassifier:
                 }
 
             # Determine category and severity
-            if if_anomalous and rf_class != "Benign":
+            if if_anomalous and rf_reliable and rf_class != "Benign":
                 severity = _CLASS_SEVERITY.get(rf_class, "MEDIUM")
                 # Both models agree — escalate to at least HIGH
                 if severity in ("LOW", "MEDIUM"):
@@ -107,9 +112,19 @@ class MLClassifier:
             elif if_anomalous:
                 severity = "MEDIUM"
                 category = "Unknown Anomaly"
-            else:
+            elif rf_reliable and rf_class != "Benign":
                 severity = _CLASS_SEVERITY.get(rf_class, "MEDIUM")
                 category = rf_class
+            else:
+                # RF says attack but confidence is too low — treat as benign
+                return {
+                    "anomalous": False,
+                    "if_score": if_score,
+                    "rf_class": rf_class,
+                    "rf_confidence": rf_confidence,
+                    "category": None,
+                    "severity": None,
+                }
 
             return {
                 "anomalous": True,

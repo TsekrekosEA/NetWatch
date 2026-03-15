@@ -9,7 +9,6 @@ immediately with zero training data.
 
 import logging
 from collections import deque
-from typing import Optional
 
 import numpy as np
 
@@ -31,11 +30,21 @@ FEATURE_NAMES = [
 class RollingBaseline:
     """Per-feature rolling window baseline with z-score anomaly detection."""
 
-    def __init__(self, window_size: int = 1000, threshold: float = 3.5) -> None:
+    def __init__(
+        self,
+        window_size: int = 1000,
+        threshold: float = 3.5,
+        warmup: int = 30,
+        severity_medium: int = 3,
+        severity_high: int = 6,
+    ) -> None:
         self.window_size = window_size
         self.threshold = threshold
+        self.warmup = warmup
+        self.severity_medium = severity_medium
+        self.severity_high = severity_high
         self._windows: list[deque[float]] = [
-            deque(maxlen=window_size) for _ in range(20)
+            deque(maxlen=window_size) for _ in range(len(FEATURE_NAMES))
         ]
 
     def update_and_check(self, features: list[float]) -> dict:
@@ -53,7 +62,7 @@ class RollingBaseline:
         for i, value in enumerate(features):
             window = self._windows[i]
 
-            if len(window) >= 30:
+            if len(window) >= self.warmup:
                 arr = np.array(window)
                 mean = arr.mean()
                 std = arr.std()
@@ -74,7 +83,7 @@ class RollingBaseline:
             }
 
         category = _classify_anomaly(anomalous_features)
-        severity = _compute_severity(len(anomalous_features))
+        severity = self._compute_severity(len(anomalous_features))
 
         return {
             "anomalous": True,
@@ -82,6 +91,14 @@ class RollingBaseline:
             "category": category,
             "severity": severity,
         }
+
+    def _compute_severity(self, anomalous_count: int) -> str:
+        """Map number of anomalous features to severity level."""
+        if anomalous_count >= self.severity_high:
+            return "HIGH"
+        if anomalous_count >= self.severity_medium:
+            return "MEDIUM"
+        return "LOW"
 
 
 def _classify_anomaly(anomalous_features: list[tuple[str, float]]) -> str:
@@ -99,17 +116,11 @@ def _classify_anomaly(anomalous_features: list[tuple[str, float]]) -> str:
     return "Statistical Anomaly"
 
 
-def _compute_severity(anomalous_count: int) -> str:
-    """Map number of anomalous features to severity level."""
-    if anomalous_count >= 6:
-        return "HIGH"
-    if anomalous_count >= 3:
-        return "MEDIUM"
-    return "LOW"
-
-
 # Module-level singleton used by the pipeline
 baseline = RollingBaseline(
     window_size=settings.ROLLING_WINDOW_SIZE,
     threshold=settings.STAT_THRESHOLD,
+    warmup=settings.STAT_WARMUP,
+    severity_medium=settings.SEVERITY_MEDIUM_THRESHOLD,
+    severity_high=settings.SEVERITY_HIGH_THRESHOLD,
 )
