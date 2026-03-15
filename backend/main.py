@@ -13,11 +13,14 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from config import settings
 from database import init_db
 from detection.stage2_ml import MLClassifier
-from routers import ingest, alerts, ws
+from metrics import ML_LOADED
+from routers import ingest, alerts, ws, threats
 
 logger = logging.getLogger("netwatch")
 
@@ -42,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("Loading ML models from %s …", settings.ML_MODELS_PATH)
     ml_classifier.load()
+    ML_LOADED.set(1 if ml_classifier.is_loaded else 0)
 
     start_time = time.time()
     logger.info("NetWatch backend ready.")
@@ -69,6 +73,7 @@ app.add_middleware(
 app.include_router(ingest.router)
 app.include_router(alerts.router)
 app.include_router(ws.router)
+app.include_router(threats.router)
 
 
 @app.get("/health")
@@ -80,3 +85,12 @@ async def health() -> dict:
         "flows_processed": flows_processed,
         "uptime_seconds": round(time.time() - start_time, 2),
     }
+
+
+@app.get("/metrics")
+async def prometheus_metrics() -> PlainTextResponse:
+    """Prometheus scrape endpoint."""
+    return PlainTextResponse(
+        generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )

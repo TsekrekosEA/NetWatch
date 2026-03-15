@@ -16,6 +16,7 @@ from detection.stage1_statistical import baseline
 from detection.severity import combine_stages
 from models.alert import insert_alert
 from routers.ws import broadcast_alert
+from metrics import ALERTS_TOTAL, ALERTS_RATE_LIMITED
 
 logger = logging.getLogger("netwatch.detection.pipeline")
 
@@ -66,6 +67,7 @@ async def run_pipeline(flow: FlowRecord) -> IngestResponse:
             "Rate-limited alert: %s → %s category=%s",
             flow.src_ip, flow.dst_ip, category,
         )
+        ALERTS_RATE_LIMITED.inc()
         return IngestResponse(alerted=False, severity=None)
 
     # ── Build anomaly details for the alert ───────────────────────────
@@ -102,6 +104,8 @@ async def run_pipeline(flow: FlowRecord) -> IngestResponse:
         total_bytes=total_bytes,
         total_packets=total_packets,
     )
+
+    ALERTS_TOTAL.labels(severity=severity, category=category, stage=stage).inc()
 
     logger.info(
         "ALERT [%s] %s → %s:%s  category=%s  severity=%s  stage=%s",

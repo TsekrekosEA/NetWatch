@@ -14,6 +14,7 @@ from schemas.flow import FlowRecord
 from schemas.alert import IngestResponse
 from detection.pipeline import run_pipeline
 from models.alert import insert_flow_stat
+from metrics import FLOWS_TOTAL, PIPELINE_LATENCY
 
 logger = logging.getLogger("netwatch.ingest")
 
@@ -33,7 +34,10 @@ async def ingest_flow(
     import main as app_main
     app_main.flows_processed += 1
 
-    result = await run_pipeline(flow)
+    FLOWS_TOTAL.labels(protocol=flow.protocol).inc()
+
+    with PIPELINE_LATENCY.time():
+        result = await run_pipeline(flow)
 
     total_bytes = flow.total_fwd_bytes + flow.total_bwd_bytes
     total_packets = flow.total_fwd_packets + flow.total_bwd_packets

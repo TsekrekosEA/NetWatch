@@ -1,6 +1,28 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Alert } from "../hooks/useAlertStream";
 import { SeverityBadge } from "./SeverityBadge";
+import { client } from "../api/client";
+
+interface IpIntel {
+  private?: boolean;
+  ip?: string;
+  country?: string;
+  country_code?: string;
+  region?: string;
+  city?: string;
+  isp?: string;
+  org?: string;
+  asn?: string;
+  abuse_score?: number;
+  abuse_reports?: number;
+  is_tor?: boolean;
+}
+
+function countryFlag(code: string): string {
+  return [...code.toUpperCase()]
+    .map((c) => String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0)))
+    .join("");
+}
 
 interface AlertDetailModalProps {
   alert: Alert;
@@ -21,6 +43,19 @@ export function AlertDetailModal({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  // Fetch IP threat intel for source IP
+  const [intel, setIntel] = useState<IpIntel | null>(null);
+  const [intelLoading, setIntelLoading] = useState(true);
+  useEffect(() => {
+    setIntel(null);
+    setIntelLoading(true);
+    client
+      .get<IpIntel>(`/threats/intel/${alert.src_ip}`)
+      .then((r) => setIntel(r.data))
+      .catch(() => setIntel(null))
+      .finally(() => setIntelLoading(false));
+  }, [alert.src_ip]);
 
   // Related alerts from the same source IP (excluding current)
   const relatedAlerts = useMemo(
@@ -117,6 +152,74 @@ export function AlertDetailModal({
                 value={alert.total_packets?.toLocaleString() ?? "—"}
               />
             </div>
+          </section>
+
+          {/* IP Threat Intelligence */}
+          <section>
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
+              Threat Intelligence — {alert.src_ip}
+            </h3>
+            {intelLoading ? (
+              <div className="flex items-center gap-2 rounded bg-surface p-3 text-xs text-gray-500">
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Looking up intel…
+              </div>
+            ) : intel?.private ? (
+              <div className="rounded bg-surface p-3 text-xs text-gray-500">
+                Private / RFC-1918 address — no external intel available.
+              </div>
+            ) : intel && Object.keys(intel).length > 1 ? (
+              <div className="rounded bg-surface p-3">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                  {intel.country && (
+                    <Row
+                      label="Location"
+                      value={`${intel.country_code ? countryFlag(intel.country_code) + " " : ""}${intel.city ? intel.city + ", " : ""}${intel.country}`}
+                    />
+                  )}
+                  {intel.region && <Row label="Region" value={intel.region} />}
+                  {intel.isp && <Row label="ISP" value={intel.isp} />}
+                  {intel.org && intel.org !== intel.isp && (
+                    <Row label="Org" value={intel.org} />
+                  )}
+                  {intel.asn && <Row label="ASN" value={intel.asn} mono />}
+                </div>
+                {(intel.abuse_score !== undefined || intel.is_tor) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-gray-800 pt-2">
+                    {intel.abuse_score !== undefined && (
+                      <span
+                        className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                          intel.abuse_score >= 50
+                            ? "bg-red-900/40 text-red-300"
+                            : intel.abuse_score >= 10
+                              ? "bg-amber-900/40 text-amber-300"
+                              : "bg-green-900/30 text-green-400"
+                        }`}
+                      >
+                        Abuse score: {intel.abuse_score}%
+                      </span>
+                    )}
+                    {intel.abuse_reports !== undefined && (
+                      <span className="rounded bg-gray-700/50 px-2 py-0.5 text-[11px] text-gray-400">
+                        {intel.abuse_reports} reports
+                      </span>
+                    )}
+                    {intel.is_tor && (
+                      <span className="rounded bg-purple-900/40 px-2 py-0.5 text-[11px] font-medium text-purple-300">
+                        Tor exit node
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="rounded bg-surface p-3 text-xs text-gray-500">
+                No intel available for this IP.
+              </div>
+            )}
           </section>
 
           {/* Statistical details */}

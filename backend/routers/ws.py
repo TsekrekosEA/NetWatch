@@ -14,6 +14,7 @@ from typing import Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from database import get_db
+from metrics import WS_CONNECTIONS
 
 logger = logging.getLogger("netwatch.ws")
 
@@ -76,6 +77,7 @@ async def websocket_alerts(ws: WebSocket) -> None:
     """WebSocket endpoint for live alert streaming."""
     await ws.accept()
     _connections.add(ws)
+    WS_CONNECTIONS.inc()
     logger.info("Dashboard client connected (%d total)", len(_connections))
 
     stats_task = asyncio.create_task(_stats_loop(ws))
@@ -89,4 +91,5 @@ async def websocket_alerts(ws: WebSocket) -> None:
     finally:
         stats_task.cancel()
         _connections.discard(ws)
+        WS_CONNECTIONS.dec()
         logger.info("Dashboard client disconnected (%d remaining)", len(_connections))

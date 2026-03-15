@@ -28,7 +28,7 @@ interface UseAlertStreamReturn {
   connected: boolean;
 }
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000";
+const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8001";
 const MAX_ALERTS = 500;
 
 export function useAlertStream(): UseAlertStreamReturn {

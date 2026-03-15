@@ -9,3 +9,4 @@ joblib==1.4.2
 pandas==2.2.3
 websockets==14.1
 httpx==0.28.1
+prometheus_client==0.21.1
