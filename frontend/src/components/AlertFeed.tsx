@@ -1,28 +1,59 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { Alert } from "../hooks/useAlertStream";
 import { SeverityBadge } from "./SeverityBadge";
+import { client } from "../api/client";
 
 interface AlertFeedProps {
   alerts: Alert[];
   onAlertSelect?: (alert: Alert) => void;
 }
 
+// Module-level cache persists across re-renders without causing them.
+// Maps ip → ISO-3166-1 alpha-2 country code (empty string = private/unknown).
+const ipCountryCache = new Map<string, string>();
+const ipPending = new Set<string>();
+
+function countryFlag(code: string): string {
+  if (!code || code.length !== 2) return "";
+  return [...code.toUpperCase()]
+    .map((c) => String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0)))
+    .join("");
+}
+
 export function AlertFeed({ alerts, onAlertSelect }: AlertFeedProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [unseenCount, setUnseenCount] = useState(0);
+  // Bump to force re-render when flag cache entries arrive.
+  const [flagVersion, setFlagVersion] = useState(0);
+  void flagVersion;
   const containerRef = useRef<HTMLDivElement>(null);
-  const prevCountRef = useRef(alerts.length);
   const prevLenRef = useRef(alerts.length);
 
-  // Track how many alerts are new for slide-in animation
-  const newAlertCount = alerts.length - prevCountRef.current;
-
+  // Fetch country codes for any newly-seen source IPs.
   useEffect(() => {
-    prevCountRef.current = alerts.length;
-  }, [alerts.length]);
+    const unique = [...new Set(alerts.map((a) => a.src_ip))];
+    const fresh = unique.filter(
+      (ip) => !ipCountryCache.has(ip) && !ipPending.has(ip),
+    );
+    if (fresh.length === 0) return;
+    fresh.forEach((ip) => {
+      ipPending.add(ip);
+      client
+        .get<{ country_code?: string; private?: boolean }>(
+          `/threats/intel/${ip}`,
+        )
+        .then((r) => {
+          ipCountryCache.set(ip, r.data.country_code ?? "");
+          setFlagVersion((v) => v + 1);
+        })
+        .catch(() => ipCountryCache.set(ip, ""))
+        .finally(() => ipPending.delete(ip));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerts]);
 
-  // Track unseen alerts when auto-scroll is off
+  // Track unseen alerts when scrolled away from top.
   useEffect(() => {
     const diff = alerts.length - prevLenRef.current;
     prevLenRef.current = alerts.length;
@@ -31,31 +62,41 @@ export function AlertFeed({ alerts, onAlertSelect }: AlertFeedProps) {
     }
   }, [alerts.length, autoScroll]);
 
-  // Reset unseen count when auto-scroll re-engages
   useEffect(() => {
     if (autoScroll) setUnseenCount(0);
   }, [autoScroll]);
 
-  // Smart scroll lock: if user scrolls up, stop auto-scrolling
+  // Disable auto-scroll while an item is expanded so new alerts don't
+  // pull the view away from the expanded row.
+  useEffect(() => {
+    if (expandedId !== null) setAutoScroll(false);
+  }, [expandedId]);
+
+  // Auto-scroll to top only when nothing is expanded.
+  useEffect(() => {
+    if (autoScroll && expandedId === null && containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+  }, [alerts.length, autoScroll, expandedId]);
+
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    setAutoScroll(el.scrollTop < 20);
+    // Re-engage auto-scroll only when user scrolls back to the very top.
+    if (el.scrollTop < 10) setAutoScroll(true);
   }, []);
 
-  useEffect(() => {
-    if (autoScroll && containerRef.current) {
-      containerRef.current.scrollTop = 0;
-    }
-  }, [alerts.length, autoScroll]);
-
   const scrollToTop = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = 0;
-    }
+    if (containerRef.current) containerRef.current.scrollTop = 0;
     setAutoScroll(true);
     setUnseenCount(0);
+    setExpandedId(null);
   };
+
+  // Scroll the newly-expanded row into view.
+  const expandedRowRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
 
   return (
     <>
@@ -79,39 +120,45 @@ export function AlertFeed({ alerts, onAlertSelect }: AlertFeedProps) {
           </div>
         )}
 
-        {alerts.map((alert, index) => {
+        {alerts.map((alert) => {
           const expanded = expandedId === alert.id;
           const ts = new Date(alert.timestamp * 1000);
-          const timeStr = ts.toLocaleTimeString();
+          const flag = countryFlag(ipCountryCache.get(alert.src_ip) ?? "");
 
           return (
             <div
               key={alert.id}
-              className={`border-b border-gray-800/50 px-4 py-2 transition-colors hover:bg-surface-hover cursor-pointer ${
-                index < newAlertCount ? "animate-slide-in" : ""
-              }`}
+              className="animate-slide-in border-b border-gray-800/50 px-4 py-2 transition-colors hover:bg-surface-hover cursor-pointer"
               onClick={() => setExpandedId(expanded ? null : alert.id)}
             >
-              <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-2 text-sm">
                 <span className="w-20 shrink-0 text-xs text-gray-500">
-                  {timeStr}
+                  {ts.toLocaleTimeString()}
                 </span>
                 <SeverityBadge severity={alert.severity} />
                 <span className="font-mono text-xs text-gray-300">
+                  {flag && (
+                    <span
+                      className="mr-0.5"
+                      title={`Country: ${ipCountryCache.get(alert.src_ip)}`}
+                    >
+                      {flag}
+                    </span>
+                  )}
                   {alert.src_ip}:{alert.src_port ?? "—"}
                   <span className="mx-1 text-gray-600">→</span>
                   {alert.dst_ip}:{alert.dst_port ?? "—"}
                 </span>
-                <span className="ml-auto text-xs text-gray-400">
+                <span className="ml-auto shrink-0 text-xs text-gray-400">
                   {alert.category}
                 </span>
                 <span
-                  className={`rounded px-1 text-[10px] ${
+                  className={`shrink-0 rounded px-1 text-[10px] ${
                     alert.stage === "both"
                       ? "bg-purple-900/40 text-purple-300"
                       : alert.stage === "ml"
-                      ? "bg-blue-900/40 text-blue-300"
-                      : "bg-gray-700/40 text-gray-400"
+                        ? "bg-blue-900/40 text-blue-300"
+                        : "bg-gray-700/40 text-gray-400"
                   }`}
                 >
                   {alert.stage}
@@ -119,7 +166,10 @@ export function AlertFeed({ alerts, onAlertSelect }: AlertFeedProps) {
               </div>
 
               {expanded && (
-                <div className="animate-expand overflow-hidden">
+                <div
+                  ref={expandedRowRef}
+                  className="animate-expand overflow-hidden"
+                >
                   <div className="mt-2 rounded bg-surface p-3 text-xs text-gray-400">
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                       <DetailRow label="Protocol" value={alert.protocol} />

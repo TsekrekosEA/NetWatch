@@ -78,13 +78,14 @@ async def run_pipeline(flow: FlowRecord) -> IngestResponse:
             "stat_category": stat_result["category"],
             "stat_severity": stat_result["severity"],
         }
-    if ml_result and ml_result.get("anomalous"):
+    if ml_result:
         details["ml"] = {
-            "if_score": ml_result["if_score"],
-            "rf_class": ml_result["rf_class"],
-            "rf_confidence": ml_result["rf_confidence"],
-            "ml_category": ml_result["category"],
-            "ml_severity": ml_result["severity"],
+            "if_score": ml_result.get("if_score"),
+            "rf_class": ml_result.get("rf_class"),
+            "rf_confidence": ml_result.get("rf_confidence"),
+            "ml_category": ml_result.get("category") or "Benign",
+            "ml_severity": ml_result.get("severity"),
+            "ml_anomalous": ml_result.get("anomalous", False),
         }
 
     total_bytes = flow.total_fwd_bytes + flow.total_bwd_bytes

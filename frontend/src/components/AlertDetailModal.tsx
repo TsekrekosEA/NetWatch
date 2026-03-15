@@ -262,12 +262,24 @@ export function AlertDetailModal({
             </section>
           )}
 
-          {/* ML details */}
-          {mlDetails && (
-            <section>
-              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
-                ML Classification
-              </h3>
+          {/* ML details — always render; dimmed when ML did not trigger */}
+          <section
+            className={mlDetails && !mlDetails.ml_anomalous ? "opacity-60" : ""}
+          >
+            <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-gray-500">
+              ML Classification
+              {mlDetails && !mlDetails.ml_anomalous && (
+                <span className="rounded bg-gray-700/50 px-2 py-0.5 text-[10px] normal-case text-gray-400">
+                  scored benign
+                </span>
+              )}
+              {!mlDetails && (
+                <span className="rounded bg-gray-700/50 px-2 py-0.5 text-[10px] normal-case text-gray-400">
+                  no classifier data
+                </span>
+              )}
+            </h3>
+            {mlDetails ? (
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded bg-surface p-3 text-sm">
                 <Row
                   label="RF Class"
@@ -294,8 +306,12 @@ export function AlertDetailModal({
                   value={String(mlDetails.ml_category ?? "—")}
                 />
               </div>
-            </section>
-          )}
+            ) : (
+              <div className="rounded bg-surface p-3 text-xs text-gray-500">
+                ML models were not loaded when this alert was generated.
+              </div>
+            )}
+          </section>
 
           {/* Related alerts from same source IP */}
           {relatedAlerts.length > 0 && (

@@ -11,7 +11,7 @@ import { ProtocolBreakdown } from "../components/ProtocolBreakdown";
 import { ThreatHeatmap } from "../components/ThreatHeatmap";
 import { CriticalAlertToast } from "../components/CriticalAlertToast";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8001";
 
 type RightTab = "traffic" | "threats";
 
@@ -115,6 +115,7 @@ export function Dashboard() {
             filteredCount={filteredAlerts.length}
           />
           <AlertFeed
+            key={`${severityFilter}|${ipFilter}`}
             alerts={filteredAlerts}
             onAlertSelect={setSelectedAlert}
           />

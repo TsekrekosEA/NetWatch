@@ -42,6 +42,12 @@ export function useAlertStream(): UseAlertStreamReturn {
   const reconnectDelay = useRef(1000);
 
   const connect = useCallback(() => {
+    // Guard: don't open a second connection if one is already alive.
+    // This prevents React StrictMode's double-mount from creating two
+    // concurrent WebSocket connections and duplicating every alert.
+    const state = wsRef.current?.readyState;
+    if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) return;
+
     const ws = new WebSocket(`${WS_URL}/ws/alerts`);
     wsRef.current = ws;
 
@@ -55,6 +61,8 @@ export function useAlertStream(): UseAlertStreamReturn {
         const msg = JSON.parse(event.data);
         if (msg.type === "alert") {
           setAlerts((prev) => {
+            // Deduplicate by ID — safety net against any duplicate deliveries.
+            if (prev.some((a) => a.id === (msg.data as Alert).id)) return prev;
             const next = [msg.data as Alert, ...prev];
             return next.length > MAX_ALERTS ? next.slice(0, MAX_ALERTS) : next;
           });
@@ -82,7 +90,12 @@ export function useAlertStream(): UseAlertStreamReturn {
   useEffect(() => {
     connect();
     return () => {
-      wsRef.current?.close();
+      // Clear onclose before closing so the reconnect timer is NOT scheduled
+      // during StrictMode cleanup — only genuine disconnects should reconnect.
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+      }
     };
   }, [connect]);
 
