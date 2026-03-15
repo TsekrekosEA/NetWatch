@@ -1,22 +1,21 @@
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   ReferenceLine,
   CartesianGrid,
 } from "recharts";
 import type { TimelineBucket } from "../hooks/useStats";
-import type { Alert } from "../hooks/useAlertStream";
 
 interface TrafficChartProps {
   timeline: TimelineBucket[];
-  alerts: Alert[];
 }
 
-export function TrafficChart({ timeline, alerts }: TrafficChartProps) {
+export function TrafficChart({ timeline }: TrafficChartProps) {
   const data = timeline.map((bucket) => ({
     time: new Date(bucket.ts * 1000).toLocaleTimeString([], {
       hour: "2-digit",
@@ -36,8 +35,18 @@ export function TrafficChart({ timeline, alerts }: TrafficChartProps) {
       <h3 className="mb-3 text-sm font-medium text-gray-300">
         Traffic Timeline (last 10 min)
       </h3>
-      <ResponsiveContainer width="100%" height={200}>
-        <LineChart data={data}>
+      <ResponsiveContainer width="100%" height={260}>
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id="gradBytes" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="gradFlows" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
           <XAxis
             dataKey="time"
@@ -79,21 +88,24 @@ export function TrafficChart({ timeline, alerts }: TrafficChartProps) {
               fontSize: "11px",
             }}
           />
-          <Line
+          <Legend wrapperStyle={{ fontSize: "11px", color: "#9ca3af" }} />
+          <Area
             yAxisId="left"
             type="monotone"
             dataKey="bytes"
             stroke="#3b82f6"
             strokeWidth={2}
+            fill="url(#gradBytes)"
             dot={false}
             name="Bytes"
           />
-          <Line
+          <Area
             yAxisId="right"
             type="monotone"
             dataKey="flows"
             stroke="#22c55e"
             strokeWidth={1.5}
+            fill="url(#gradFlows)"
             dot={false}
             name="Flows"
           />
@@ -107,7 +119,7 @@ export function TrafficChart({ timeline, alerts }: TrafficChartProps) {
               strokeOpacity={0.6}
             />
           ))}
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

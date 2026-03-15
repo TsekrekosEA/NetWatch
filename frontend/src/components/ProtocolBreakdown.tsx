@@ -38,10 +38,19 @@ export function ProtocolBreakdown({ distribution }: ProtocolBreakdownProps) {
             cx="50%"
             cy="50%"
             outerRadius={75}
-            label={({ name, percent }) =>
-              `${name} ${(percent * 100).toFixed(0)}%`
-            }
-            labelLine={false}
+            label={({ name, percent, x, y }) => (
+              <text
+                x={x}
+                y={y}
+                fill="#d1d5db"
+                fontSize={11}
+                textAnchor="middle"
+                dominantBaseline="central"
+              >
+                {`${name} ${(percent * 100).toFixed(0)}%`}
+              </text>
+            )}
+            labelLine={{ stroke: "#4b5563" }}
           >
             {data.map((entry) => (
               <Cell

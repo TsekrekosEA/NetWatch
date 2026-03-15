@@ -6,16 +6,18 @@ import { AlertFeed } from "../components/AlertFeed";
 import { TrafficChart } from "../components/TrafficChart";
 import { ProtocolBreakdown } from "../components/ProtocolBreakdown";
 import { ThreatHeatmap } from "../components/ThreatHeatmap";
+import { CriticalAlertToast } from "../components/CriticalAlertToast";
 
 type RightTab = "traffic" | "threats";
 
 export function Dashboard() {
   const { alerts, liveStats, connected } = useAlertStream();
-  const { summary, timeline, health } = useStats();
+  const { summary, timeline, health, loading } = useStats();
   const [rightTab, setRightTab] = useState<RightTab>("traffic");
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
+      <CriticalAlertToast alerts={alerts} />
       {/* Header */}
       <header className="flex items-center justify-between border-b border-gray-800 bg-surface-card px-6 py-3">
         <div className="flex items-center gap-3">
@@ -26,16 +28,21 @@ export function Dashboard() {
             IDS Dashboard
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <span
-            className={`inline-block h-2.5 w-2.5 rounded-full ${
-              connected ? "bg-green-500 animate-pulse" : "bg-red-500"
+        <div className="flex items-center gap-2">
+          <div
+            className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
+              connected
+                ? "border border-green-800/50 bg-green-900/30 text-green-400"
+                : "border border-red-800/50 bg-red-900/30 text-red-400"
             }`}
-            title={connected ? "WebSocket connected" : "Disconnected"}
-          />
-          <span className="text-xs text-gray-400">
+          >
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                connected ? "animate-pulse bg-green-500" : "bg-red-500"
+              }`}
+            />
             {connected ? "Live" : "Disconnected"}
-          </span>
+          </div>
         </div>
       </header>
 
@@ -44,12 +51,14 @@ export function Dashboard() {
         summary={summary}
         liveStats={liveStats}
         health={health}
+        loading={loading}
+        timeline={timeline}
       />
 
       {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left panel: Alert feed (60%) */}
-        <div className="flex w-[60%] flex-col border-r border-gray-800">
+      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+        {/* Left panel: Alert feed */}
+        <div className="flex w-full min-h-[300px] max-h-[50vh] flex-col border-b border-gray-800 lg:max-h-none lg:w-[60%] lg:border-b-0 lg:border-r">
           <div className="border-b border-gray-800 bg-surface-card px-4 py-2">
             <h2 className="text-sm font-medium text-gray-300">
               Alert Feed
@@ -61,8 +70,8 @@ export function Dashboard() {
           <AlertFeed alerts={alerts} />
         </div>
 
-        {/* Right panel: Traffic / Threats tabs (40%) */}
-        <div className="flex w-[40%] flex-col">
+        {/* Right panel: Traffic / Threats tabs */}
+        <div className="flex w-full flex-col lg:w-[40%]">
           {/* Tab switcher */}
           <div className="flex border-b border-gray-800 bg-surface-card">
             <button
@@ -88,20 +97,21 @@ export function Dashboard() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
-            {rightTab === "traffic" ? (
-              <div className="flex flex-col gap-4">
-                <TrafficChart timeline={timeline} alerts={alerts} />
-                <ProtocolBreakdown
-                  distribution={summary.protocol_distribution}
+            <div key={rightTab} className="animate-fade-in">
+              {rightTab === "traffic" ? (
+                <div className="flex flex-col gap-4">
+                  <TrafficChart timeline={timeline} />
+                  <ProtocolBreakdown
+                    distribution={summary.protocol_distribution}
+                  />
+                </div>
+              ) : (
+                <ThreatHeatmap
+                  alertsByCategory={summary.alerts_by_category}
+                  alerts={alerts}
                 />
-              </div>
-            ) : (
-              <ThreatHeatmap
-                topIps={summary.top_src_ips}
-                alertsByCategory={summary.alerts_by_category}
-                alerts={alerts}
-              />
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

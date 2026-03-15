@@ -6,7 +6,7 @@ const COLORS: Record<string, string> = {
   LOW: "bg-gray-600 text-gray-200",
   MEDIUM: "bg-amber-600 text-amber-100",
   HIGH: "bg-orange-600 text-orange-100",
-  CRITICAL: "bg-red-600 text-red-100",
+  CRITICAL: "bg-red-600 text-red-100 animate-pulse-critical animate-glow-critical",
 };
 
 export function SeverityBadge({ severity }: SeverityBadgeProps) {

@@ -11,13 +11,11 @@ import {
 import type { Alert } from "../hooks/useAlertStream";
 
 interface ThreatHeatmapProps {
-  topIps: Array<{ ip: string; count: number }>;
   alertsByCategory: Record<string, number>;
   alerts: Alert[];
 }
 
 export function ThreatHeatmap({
-  topIps,
   alertsByCategory,
   alerts,
 }: ThreatHeatmapProps) {
@@ -136,6 +134,12 @@ export function ThreatHeatmap({
         ) : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={categoryData} layout="vertical">
+              <defs>
+                <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8} />
+                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={1} />
+                </linearGradient>
+              </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="#1e2130"
@@ -169,7 +173,7 @@ export function ThreatHeatmap({
                   return "";
                 }}
               />
-              <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="count" fill="url(#barGrad)" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

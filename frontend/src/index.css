@@ -19,3 +19,14 @@ body {
   background: #2d3348;
   border-radius: 3px;
 }
+
+/* Skeleton shimmer */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #161922 25%,
+    #1e2130 50%,
+    #161922 75%
+  );
+  background-size: 200% 100%;
+}

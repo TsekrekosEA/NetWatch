@@ -39,6 +39,7 @@ export function useStats(pollIntervalMs = 10_000) {
   const [summary, setSummary] = useState<StatsSummary>(EMPTY_STATS);
   const [timeline, setTimeline] = useState<TimelineBucket[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -52,6 +53,8 @@ export function useStats(pollIntervalMs = 10_000) {
       setHealth(healthRes.data);
     } catch {
       // Silently retry on next interval
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -61,5 +64,5 @@ export function useStats(pollIntervalMs = 10_000) {
     return () => clearInterval(id);
   }, [fetchAll, pollIntervalMs]);
 
-  return { summary, timeline, health };
+  return { summary, timeline, health, loading };
 }
