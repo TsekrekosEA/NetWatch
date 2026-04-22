@@ -10,3 +10,4 @@ backend/ml/models/
 frontend/dist/
 *.pcap
 *.pcapng
+notes.md
