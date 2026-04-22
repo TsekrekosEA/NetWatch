@@ -12,9 +12,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_BACKEND: ${{ github.repository_owner }}/netwatch-backend
-  IMAGE_NAME_CAPTURE: ${{ github.repository_owner }}/netwatch-capture
-  IMAGE_NAME_FRONTEND: ${{ github.repository_owner }}/netwatch-frontend
 
 jobs:
   # ===== STAGE 1: TEST =====
@@ -61,9 +58,15 @@ jobs:
     strategy:
       matrix:
         service:
-          - { name: "backend", path: "./backend", image_name_var: "IMAGE_NAME_BACKEND" }
-          - { name: "capture", path: "./capture", image_name_var: "IMAGE_NAME_CAPTURE" }
-          - { name: "frontend", path: "./frontend", image_name_var: "IMAGE_NAME_FRONTEND" }
+          - name: "backend"
+            path: "./backend"
+            image: "${{ github.repository_owner }}/netwatch-backend"
+          - name: "capture"
+            path: "./capture"
+            image: "${{ github.repository_owner }}/netwatch-capture"
+          - name: "frontend"
+            path: "./frontend"
+            image: "${{ github.repository_owner }}/netwatch-frontend"
       fail-fast: false
 
     steps:
@@ -84,7 +87,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ matrix.service.image_name_var }}
+          images: ${{ env.REGISTRY }}/${{ matrix.service.image }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -116,9 +119,12 @@ jobs:
     strategy:
       matrix:
         service:
-          - { name: "backend", image_name_var: "IMAGE_NAME_BACKEND" }
-          - { name: "capture", image_name_var: "IMAGE_NAME_CAPTURE" }
-          - { name: "frontend", image_name_var: "IMAGE_NAME_FRONTEND" }
+          - name: "backend"
+            image: "${{ github.repository_owner }}/netwatch-backend"
+          - name: "capture"
+            image: "${{ github.repository_owner }}/netwatch-capture"
+          - name: "frontend"
+            image: "${{ github.repository_owner }}/netwatch-frontend"
       fail-fast: false
 
     steps:
@@ -132,7 +138,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ matrix.service.image_name_var }}:latest
+          image-ref: ${{ env.REGISTRY }}/${{ matrix.service.image }}:latest
           format: "sarif"
           output: "trivy-${{ matrix.service.name }}.sarif"
           severity: "HIGH,CRITICAL"
@@ -169,6 +175,6 @@ jobs:
             exit 1
           else
             echo "✅ CI/CD Pipeline PASSED"
-            echo "📦 Images available at ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest"
+            echo "📦 Images available at ${{ env.REGISTRY }}/${{ github.repository_owner }}/netwatch-*:latest"
             exit 0
           fi
