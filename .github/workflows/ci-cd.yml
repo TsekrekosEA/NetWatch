@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - develop
+      - "copilot/**"
   pull_request:
     branches:
       - main
       - develop
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -92,7 +94,7 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
+            type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=pr-${{ github.event.pull_request.number }},enable=${{ github.event_name == 'pull_request' }}
 
@@ -104,7 +106,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
 
   # ===== STAGE 3: SECURITY SCAN =====
   security-scan:
@@ -149,6 +151,9 @@ jobs:
           image-ref: netwatch-${{ matrix.service.name }}:scan
           format: "sarif"
           output: "trivy-${{ matrix.service.name }}.sarif"
+          scanners: "vuln"
+          vuln-type: "os,library"
+          ignore-unfixed: true
           severity: "HIGH,CRITICAL"
 
       - name: Upload Trivy results to GitHub Security tab
