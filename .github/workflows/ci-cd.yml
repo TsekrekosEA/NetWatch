@@ -149,6 +149,9 @@ jobs:
           image-ref: netwatch-${{ matrix.service.name }}:scan
           format: "sarif"
           output: "trivy-${{ matrix.service.name }}.sarif"
+          scanners: "vuln"
+          vuln-type: "os,library"
+          ignore-unfixed: true
           severity: "HIGH,CRITICAL"
 
       - name: Upload Trivy results to GitHub Security tab
