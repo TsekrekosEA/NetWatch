@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: netwatch-backend-pdb
+  namespace: netwatch
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      component: backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: netwatch-frontend-pdb
+  namespace: netwatch
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      component: frontend

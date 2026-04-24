@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netwatch.fullname" . }}-frontend
+  labels:
+    component: frontend
+    {{- include "netwatch.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "netwatch.fullname" . }}-frontend
+  template:
+    metadata:
+      labels:
+        app: {{ include "netwatch.fullname" . }}-frontend
+        component: frontend
+        {{- include "netwatch.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: frontend
+          image: {{ include "netwatch.image" (dict "registry" .Values.global.image.registry "repository" .Values.frontend.image.repository "tag" .Values.frontend.image.tag) }}
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.frontend.service.targetPort }}
+          env:
+            - name: VITE_API_URL
+              value: http://{{ include "netwatch.fullname" . }}-backend:{{ .Values.backend.service.port }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.frontend.service.targetPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.frontend.service.targetPort }}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}

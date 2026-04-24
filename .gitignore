@@ -11,3 +11,4 @@ frontend/dist/
 *.pcap
 *.pcapng
 notes.md
+logs/

@@ -61,6 +61,72 @@ When an alert detail modal is opened, NetWatch enriches the source IP in real ti
 | Containers | Docker + docker-compose | One command to run everything |
 | Tests | pytest + pytest-asyncio | 50 tests covering pipeline, models, API |
 
+## Cloud-Native Deployment (Terraform + Kubernetes + Helm)
+
+NetWatch now includes an infrastructure stack for AWS and Kubernetes:
+
+- Terraform provisions VPC, EKS, and ECR repositories
+- Helm deploys backend, capture, and frontend workloads to the cluster
+- Baseline Kubernetes hardening manifests (network policies, PDBs) are included
+
+### Infrastructure Layout
+
+- `infra/terraform`: AWS infrastructure + optional Helm release
+- `infra/terraform/environments`: environment-specific tfvars
+- `infra/helm/netwatch`: Helm chart for app deployment
+- `infra/k8s/base`: baseline Kubernetes governance manifests
+
+### Prerequisites
+
+- Terraform >= 1.7
+- AWS credentials configured (`aws configure`)
+- kubectl
+- Helm >= 3
+
+### Provision AWS + EKS + ECR (Dev)
+
+```bash
+cd infra/terraform
+terraform init
+terraform plan -var-file=environments/dev.tfvars
+terraform apply -var-file=environments/dev.tfvars
+```
+
+After apply, configure kubectl:
+
+```bash
+aws eks update-kubeconfig \
+  --region eu-central-1 \
+  --name netwatch-dev
+```
+
+### Deploy with Helm
+
+If `enable_helm_release=true`, Terraform deploys Helm automatically.
+
+To deploy or upgrade manually:
+
+```bash
+helm upgrade --install netwatch ./infra/helm/netwatch \
+  --namespace netwatch \
+  --create-namespace
+```
+
+### Apply Baseline Policies
+
+```bash
+kubectl apply -f infra/k8s/base/namespace.yaml
+kubectl apply -f infra/k8s/base/network-policy.yaml
+kubectl apply -f infra/k8s/base/pod-disruption-budget.yaml
+```
+
+### Destroy Environment
+
+```bash
+cd infra/terraform
+terraform destroy -var-file=environments/dev.tfvars
+```
+
 ## Quick Start — Demo Mode
 
 ```bash

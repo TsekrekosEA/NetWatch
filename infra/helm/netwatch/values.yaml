@@ -1,0 +1,81 @@
+global:
+  image:
+    registry: ghcr.io
+
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  create: false
+  name: netwatch
+
+backend:
+  replicaCount: 2
+  image:
+    repository: netwatch-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    LOG_LEVEL: INFO
+    DEMO_MODE: "true"
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+capture:
+  replicaCount: 1
+  image:
+    repository: netwatch-capture
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+  env:
+    DEMO_MODE: "true"
+    FLOW_TIMEOUT: "120"
+
+frontend:
+  replicaCount: 2
+  image:
+    repository: netwatch-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 5173
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+ingress:
+  enabled: false
+  className: nginx
+  host: netwatch.local
+  path: /
+  pathType: Prefix
+
+secrets:
+  captureToken: change-me-in-production
+  abuseIpDbApiKey: ""

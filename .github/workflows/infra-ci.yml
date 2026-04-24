@@ -1,0 +1,241 @@
+name: Infra CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra-ci.yml"
+  push:
+    branches:
+      - main
+      - develop
+      - "copilot/**"
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  terraform-checks:
+    name: Terraform Checks (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, staging]
+
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -recursive -check
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Detect AWS credentials
+        id: creds
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          if [[ -n "$AWS_ACCESS_KEY_ID" && -n "$AWS_SECRET_ACCESS_KEY" ]]; then
+            echo "has_creds=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_creds=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.creds.outputs.has_creds == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Terraform plan
+        id: plan
+        if: steps.creds.outputs.has_creds == 'true'
+        run: |
+          set +e
+          terraform plan \
+            -input=false \
+            -no-color \
+            -detailed-exitcode \
+            -var-file="environments/${{ matrix.environment }}.tfvars" \
+            -out="tfplan-${{ matrix.environment }}" > "plan-raw-${{ matrix.environment }}.txt" 2>&1
+          exit_code=$?
+
+          if [[ "$exit_code" -eq 0 ]]; then
+            {
+              echo "Terraform plan completed with no changes."
+              echo
+              cat "plan-raw-${{ matrix.environment }}.txt"
+            } > "plan-${{ matrix.environment }}.txt"
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          elif [[ "$exit_code" -eq 2 ]]; then
+            terraform show -no-color "tfplan-${{ matrix.environment }}" > "plan-${{ matrix.environment }}.txt"
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "Terraform plan failed."
+              echo
+              cat "plan-raw-${{ matrix.environment }}.txt"
+            } > "plan-${{ matrix.environment }}.txt"
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Terraform plan skipped (no AWS credentials)
+        id: plan_skip
+        if: steps.creds.outputs.has_creds != 'true'
+        run: |
+          {
+            echo "Terraform plan skipped."
+            echo
+            echo "Reason: AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY secrets are not configured."
+          } > "plan-${{ matrix.environment }}.txt"
+          echo "status=skipped" >> "$GITHUB_OUTPUT"
+          echo "exit_code=0" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ matrix.environment }}
+          path: infra/terraform/plan-${{ matrix.environment }}.txt
+
+      - name: Comment Terraform plan on PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+        uses: actions/github-script@v7
+        env:
+          PLAN_FILE: infra/terraform/plan-${{ matrix.environment }}.txt
+          PLAN_STATUS: ${{ steps.plan.outputs.status || steps.plan_skip.outputs.status }}
+          PLAN_EXIT_CODE: ${{ steps.plan.outputs.exit_code || steps.plan_skip.outputs.exit_code }}
+          TF_ENV: ${{ matrix.environment }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = `<!-- infra-plan-${process.env.TF_ENV} -->`;
+            const status = process.env.PLAN_STATUS || 'unknown';
+            const exitCode = process.env.PLAN_EXIT_CODE || 'n/a';
+            const path = process.env.PLAN_FILE;
+            let body = '';
+
+            try {
+              body = fs.readFileSync(path, 'utf8');
+            } catch (err) {
+              body = `Could not read plan output: ${err.message}`;
+            }
+
+            const maxLen = 60000;
+            if (body.length > maxLen) {
+              body = `${body.slice(0, maxLen)}\n\n...truncated...`;
+            }
+
+            const commentBody = `${marker}
+            ### Terraform Plan (${process.env.TF_ENV})
+            Status: **${status}**
+            Exit code: **${exitCode}**
+
+            <details><summary>Show plan output</summary>
+
+            \`\`\`text
+            ${body}
+            \`\`\`
+
+            </details>`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            });
+
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: commentBody
+              });
+            }
+
+      - name: Fail when terraform plan failed
+        if: steps.plan.outputs.status == 'failure'
+        run: exit 1
+
+  helm-checks:
+    name: Helm Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        run: helm lint infra/helm/netwatch
+
+      - name: Helm template
+        run: |
+          helm template netwatch infra/helm/netwatch --namespace netwatch > rendered-manifests.yaml
+
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-rendered-manifests
+          path: rendered-manifests.yaml
+
+  infra-summary:
+    name: Infra Summary
+    runs-on: ubuntu-latest
+    needs: [terraform-checks, helm-checks]
+    if: always()
+
+    steps:
+      - name: Check job status
+        run: |
+          if [[ "${{ needs.terraform-checks.result }}" == "failure" || "${{ needs.helm-checks.result }}" == "failure" ]]; then
+            echo "Infra CI failed"
+            exit 1
+          fi
+          echo "Infra CI passed"

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netwatch.fullname" . }}-backend
+  labels:
+    component: backend
+    {{- include "netwatch.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "netwatch.fullname" . }}-backend
+  template:
+    metadata:
+      labels:
+        app: {{ include "netwatch.fullname" . }}-backend
+        component: backend
+        {{- include "netwatch.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: backend
+          image: {{ include "netwatch.image" (dict "registry" .Values.global.image.registry "repository" .Values.backend.image.repository "tag" .Values.backend.image.tag) }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CAPTURE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netwatch.fullname" . }}-secrets
+                  key: CAPTURE_TOKEN
+            - name: ABUSEIPDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netwatch.fullname" . }}-secrets
+                  key: ABUSEIPDB_API_KEY
+            {{- range $key, $value := .Values.backend.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}

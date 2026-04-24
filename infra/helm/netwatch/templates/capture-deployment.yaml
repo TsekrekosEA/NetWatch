@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netwatch.fullname" . }}-capture
+  labels:
+    component: capture
+    {{- include "netwatch.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.capture.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "netwatch.fullname" . }}-capture
+  template:
+    metadata:
+      labels:
+        app: {{ include "netwatch.fullname" . }}-capture
+        component: capture
+        {{- include "netwatch.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: capture
+          image: {{ include "netwatch.image" (dict "registry" .Values.global.image.registry "repository" .Values.capture.image.repository "tag" .Values.capture.image.tag) }}
+          imagePullPolicy: {{ .Values.capture.image.pullPolicy }}
+          env:
+            - name: BACKEND_URL
+              value: http://{{ include "netwatch.fullname" . }}-backend:{{ .Values.backend.service.port }}/ingest
+            - name: CAPTURE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netwatch.fullname" . }}-secrets
+                  key: CAPTURE_TOKEN
+            {{- range $key, $value := .Values.capture.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN", "NET_RAW"]
+          resources:
+            {{- toYaml .Values.capture.resources | nindent 12 }}
