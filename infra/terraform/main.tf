@@ -14,9 +14,9 @@ module "vpc" {
   name = local.name
   cidr = var.vpc_cidr
 
-  azs              = slice(data.aws_availability_zones.available.names, 0, 3)
-  private_subnets  = ["10.42.1.0/24", "10.42.2.0/24", "10.42.3.0/24"]
-  public_subnets   = ["10.42.101.0/24", "10.42.102.0/24", "10.42.103.0/24"]
+  azs                = slice(data.aws_availability_zones.available.names, 0, 3)
+  private_subnets    = ["10.42.1.0/24", "10.42.2.0/24", "10.42.3.0/24"]
+  public_subnets     = ["10.42.101.0/24", "10.42.102.0/24", "10.42.103.0/24"]
   enable_nat_gateway = true
   single_nat_gateway = true
 
@@ -111,12 +111,12 @@ resource "kubernetes_namespace" "netwatch" {
 resource "helm_release" "netwatch" {
   count = var.enable_helm_release ? 1 : 0
 
-  name       = "netwatch"
-  namespace  = kubernetes_namespace.netwatch.metadata[0].name
-  chart      = var.helm_chart_path
-  timeout    = 600
-  atomic     = true
-  wait       = true
+  name      = "netwatch"
+  namespace = kubernetes_namespace.netwatch.metadata[0].name
+  chart     = var.helm_chart_path
+  timeout   = 600
+  atomic    = true
+  wait      = true
 
   set {
     name  = "global.image.registry"

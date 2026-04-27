@@ -12,3 +12,4 @@ frontend/dist/
 *.pcapng
 notes.md
 logs/
+infra/terraform/.terraform/
