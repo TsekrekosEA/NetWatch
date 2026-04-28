@@ -35,7 +35,7 @@ const EMPTY_STATS: StatsSummary = {
   bytes_per_minute: [],
 };
 
-export function useStats(pollIntervalMs = 10_000) {
+export function useStats(pollIntervalMs = 10_000, timelineMinutes = 10) {
   const [summary, setSummary] = useState<StatsSummary>(EMPTY_STATS);
   const [timeline, setTimeline] = useState<TimelineBucket[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -45,7 +45,7 @@ export function useStats(pollIntervalMs = 10_000) {
     try {
       const [summaryRes, timelineRes, healthRes] = await Promise.all([
         client.get<StatsSummary>("/stats/summary"),
-        client.get<TimelineBucket[]>("/stats/timeline?minutes=10"),
+        client.get<TimelineBucket[]>(`/stats/timeline?minutes=${timelineMinutes}`),
         client.get<HealthStatus>("/health"),
       ]);
       setSummary(summaryRes.data);
@@ -56,7 +56,7 @@ export function useStats(pollIntervalMs = 10_000) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [timelineMinutes]);
 
   useEffect(() => {
     fetchAll();

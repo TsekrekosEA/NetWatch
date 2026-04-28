@@ -8,11 +8,10 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM python:3.12-alpine
+FROM nginx:1.27-alpine
 
-WORKDIR /app
-COPY --from=build /app/dist ./dist
+COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 5173
+EXPOSE 80
 
-CMD ["python", "-m", "http.server", "5173", "--directory", "dist"]
+CMD ["nginx", "-g", "daemon off;"]

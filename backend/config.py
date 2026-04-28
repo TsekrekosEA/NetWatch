@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./netwatch.db"
     CAPTURE_TOKEN: str = "change-me-in-production"
     ML_MODELS_PATH: str = "./ml/models"
+    SESSION_EXPORT_DIR: str = "./session_exports"
     LOG_LEVEL: str = "INFO"
 
     # Stage 1: Statistical baseline

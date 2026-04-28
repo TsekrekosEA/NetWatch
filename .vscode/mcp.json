@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "vexp": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "c:\\Users\\egora\\.vscode\\extensions\\vexp.vexp-vscode-2.0.12-win32-x64\\dist\\mcp-server.cjs"
+      ],
+      "env": {
+        "VEXP_WORKSPACE": "\\\\wsl.localhost\\Ubuntu\\home\\egor\\Projects\\Network_Anomaly_Detection&Intrusion_Detection_System"
+      }
+    }
+  }
+}

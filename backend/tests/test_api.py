@@ -1,5 +1,6 @@
 """Tests for REST API endpoints using FastAPI TestClient."""
 
+from pathlib import Path
 import time
 import pytest
 import pytest_asyncio
@@ -112,3 +113,15 @@ async def test_alerts_export_csv(client):
     assert resp.status_code == 200
     assert "text/csv" in resp.headers["content-type"]
     assert "netwatch_alerts.csv" in resp.headers.get("content-disposition", "")
+
+
+@pytest.mark.asyncio
+async def test_session_export_writes_files(client):
+    resp = await client.post("/session/export")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["log_path"].endswith(".txt")
+    assert data["csv_path"].endswith(".csv")
+    assert Path(data["log_path"]).exists()
+    assert Path(data["csv_path"]).exists()

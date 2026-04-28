@@ -20,7 +20,7 @@ from config import settings
 from database import init_db
 from detection.stage2_ml import MLClassifier
 from metrics import ML_LOADED
-from routers import ingest, alerts, ws, threats
+from routers import ingest, alerts, ws, threats, session
 
 logger = logging.getLogger("netwatch")
 
@@ -74,6 +74,7 @@ app.include_router(ingest.router)
 app.include_router(alerts.router)
 app.include_router(ws.router)
 app.include_router(threats.router)
+app.include_router(session.router)
 
 
 @app.get("/health")
