@@ -23,7 +23,7 @@ spec:
           imagePullPolicy: {{ .Values.capture.image.pullPolicy }}
           env:
             - name: BACKEND_URL
-              value: http://{{ include "netwatch.fullname" . }}-backend:{{ .Values.backend.service.port }}/ingest
+              value: http://{{ include "netwatch.fullname" . }}-backend:{{ .Values.backend.service.port }}
             - name: CAPTURE_TOKEN
               valueFrom:
                 secretKeyRef:

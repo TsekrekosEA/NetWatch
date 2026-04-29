@@ -47,7 +47,7 @@ When an alert detail modal is opened, NetWatch enriches the source IP in real ti
 
 | Layer | Technology | Why |
 |---|---|---|
-| Packet capture | Scapy + libpcap | Scriptable, cross-platform |
+| Packet capture | Scapy + libpcap | Scriptable, cross-platform, IPv4/IPv6 support |
 | Flow engine | Python + NumPy | Full control over feature extraction |
 | Stage 1 | Statistical (z-score) | Fast, explainable, no training needed |
 | Stage 2 | scikit-learn (IF + RF) | Standard, well-understood, exportable |
@@ -283,8 +283,9 @@ Per-class breakdown:
 
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_API_URL` | `http://localhost:8001` | Backend REST API base URL |
-| `VITE_WS_URL` | `ws://localhost:8001` | Backend WebSocket base URL |
+| `VITE_API_URL` | `http://localhost:8001` | Backend REST API base URL (dev only) |
+| `VITE_WS_URL` | `ws://localhost:8001` | Backend WebSocket base URL (dev only) |
+| `BACKEND_URL` | `http://backend:8000` | Backend service URL for Nginx proxy (production) |
 
 ## Service Ports
 
