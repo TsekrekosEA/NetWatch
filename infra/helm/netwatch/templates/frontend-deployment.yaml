@@ -24,7 +24,7 @@ spec:
           ports:
             - containerPort: {{ .Values.frontend.service.targetPort }}
           env:
-            - name: VITE_API_URL
+            - name: BACKEND_URL
               value: http://{{ include "netwatch.fullname" . }}-backend:{{ .Values.backend.service.port }}
           readinessProbe:
             tcpSocket:

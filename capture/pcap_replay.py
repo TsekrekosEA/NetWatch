@@ -20,7 +20,7 @@ import os
 import time
 from typing import Any
 
-from scapy.all import rdpcap, PcapReader, IP, TCP, UDP, ICMP  # type: ignore
+from scapy.all import rdpcap, PcapReader, IP, IPv6, TCP, UDP, ICMP, ICMPv6EchoRequest, ICMPv6EchoReply  # type: ignore
 
 from flow_engine import FlowEngine
 
@@ -103,17 +103,23 @@ class PcapReplay:
     def _process_packet(self, packet: Any) -> None:
         """Extract 5-tuple + flags from a packet and feed to flow engine."""
         try:
-            if not packet.haslayer(IP):
+            if packet.haslayer(IP):
+                ip = packet[IP]
+                src_ip = ip.src
+                dst_ip = ip.dst
+                payload_len = len(ip.payload)
+            elif packet.haslayer(IPv6):
+                ip = packet[IPv6]
+                src_ip = ip.src
+                dst_ip = ip.dst
+                payload_len = len(ip.payload)
+            else:
                 return
 
-            ip = packet[IP]
-            src_ip = ip.src
-            dst_ip = ip.dst
             protocol = "OTHER"
             src_port = 0
             dst_port = 0
             flags: set[str] = set()
-            payload_len = len(ip.payload)
 
             if packet.haslayer(TCP):
                 tcp = packet[TCP]
@@ -137,6 +143,8 @@ class PcapReplay:
                 src_port = udp.sport
                 dst_port = udp.dport
             elif packet.haslayer(ICMP):
+                protocol = "ICMP"
+            elif packet.haslayer(ICMPv6EchoRequest) or packet.haslayer(ICMPv6EchoReply):
                 protocol = "ICMP"
 
             self.flow_engine.add_packet(

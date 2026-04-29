@@ -73,9 +73,14 @@ def _canonical_key(
     src_ip: str, dst_ip: str, src_port: int, dst_port: int, protocol: str,
 ) -> tuple:
     """Create a canonical (bidirectional) flow key — lower IP first."""
-    if (src_ip, src_port) <= (dst_ip, dst_port):
+    # Use a tuple of (IP, port) to decide the order
+    if (src_ip, src_port) < (dst_ip, dst_port):
         return (src_ip, dst_ip, src_port, dst_port, protocol)
-    return (dst_ip, src_ip, dst_port, src_port, protocol)
+    elif (src_ip, src_port) > (dst_ip, dst_port):
+        return (dst_ip, src_ip, dst_port, src_port, protocol)
+    else:
+        # IPs and ports are identical (e.g. self-traffic), use order as provided
+        return (src_ip, dst_ip, src_port, dst_port, protocol)
 
 
 class FlowEngine:

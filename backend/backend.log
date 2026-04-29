@@ -1,0 +1,27 @@
+INFO:     Started server process [129868]
+INFO:     Waiting for application startup.
+2026-04-29 14:20:58,047 [INFO] netwatch: Initialising database …
+2026-04-29 14:20:58,054 [INFO] netwatch.database: Database initialised at netwatch.db
+2026-04-29 14:20:58,054 [INFO] netwatch: Loading ML models from ./ml/models …
+2026-04-29 14:20:58,055 [WARNING] netwatch.detection.stage2: ML model files not found in ./ml/models — ML detection will be skipped. Run 'python -m ml.train' to train models.
+2026-04-29 14:20:58,055 [INFO] netwatch: NetWatch backend ready.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55034 - "GET /health HTTP/1.1" 200 OK
+INFO:     ('127.0.0.1', 50120) - "WebSocket /ws/alerts" [accepted]
+2026-04-29 14:29:22,324 [INFO] netwatch.ws: Dashboard client connected (1 total)
+INFO:     connection open
+INFO:     127.0.0.1:50146 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50136 - "GET /stats/timeline?minutes=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50134 - "GET /stats/summary HTTP/1.1" 200 OK
+2026-04-29 14:29:28,195 [INFO] netwatch.ws: Dashboard client disconnected (0 remaining)
+INFO:     connection closed
+INFO:     127.0.0.1:60698 - "POST /ingest HTTP/1.1" 200 OK
+INFO:     ('127.0.0.1', 58526) - "WebSocket /ws/alerts" [accepted]
+2026-04-29 14:30:51,368 [INFO] netwatch.ws: Dashboard client connected (1 total)
+INFO:     connection open
+INFO:     127.0.0.1:58548 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58532 - "GET /stats/timeline?minutes=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58530 - "GET /stats/summary HTTP/1.1" 200 OK
+2026-04-29 14:30:57,433 [INFO] netwatch.ws: Dashboard client disconnected (0 remaining)
+INFO:     connection closed

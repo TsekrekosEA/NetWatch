@@ -60,7 +60,7 @@ frontend:
   service:
     type: LoadBalancer
     port: 80
-    targetPort: 5173
+    targetPort: 80
   resources:
     requests:
       cpu: 100m
