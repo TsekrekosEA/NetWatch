@@ -20,15 +20,16 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test_netwatch.db")
 async def test_db(tmp_path):
     """Create a test database with schema applied."""
     import database
+    from config import settings
 
-    original_path = database.DB_PATH
+    original_url = settings.DATABASE_URL
     db_path = str(tmp_path / "test.db")
-    database.DB_PATH = db_path
+    settings.DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
 
     await database.init_db()
     yield db_path
 
-    database.DB_PATH = original_path
+    settings.DATABASE_URL = original_url
 
 
 @pytest.fixture()
