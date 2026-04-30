@@ -8,9 +8,9 @@ reads during alert streaming.
 import aiosqlite
 import logging
 
-logger = logging.getLogger("netwatch.database")
+from config import settings
 
-DB_PATH = "netwatch.db"
+logger = logging.getLogger("netwatch.database")
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS alerts (
@@ -48,16 +48,16 @@ CREATE INDEX IF NOT EXISTS idx_flow_stats_ts    ON flow_stats(timestamp DESC);
 
 async def init_db() -> None:
     """Create tables and indices if they do not exist."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(settings.DB_PATH) as db:
         await db.execute("PRAGMA journal_mode=WAL;")
         await db.executescript(_SCHEMA_SQL)
         await db.commit()
-    logger.info("Database initialised at %s", DB_PATH)
+    logger.info("Database initialised at %s", settings.DB_PATH)
 
 
 async def get_db() -> aiosqlite.Connection:
     """Return an async database connection. Caller must close it."""
-    db = await aiosqlite.connect(DB_PATH)
+    db = await aiosqlite.connect(settings.DB_PATH)
     db.row_factory = aiosqlite.Row
     await db.execute("PRAGMA journal_mode=WAL;")
     return db

@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     """Backend configuration loaded from environment variables."""
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./netwatch.db"
+    @property
+    def DB_PATH(self) -> str:
+        # Extract filename from sqlite+aiosqlite:///./netwatch.db
+        if "///" in self.DATABASE_URL:
+            return self.DATABASE_URL.split("///")[-1]
+        return "netwatch.db"
+
     CAPTURE_TOKEN: str = "change-me-in-production"
     ML_MODELS_PATH: str = "./ml/models"
     SESSION_EXPORT_DIR: str = "./session_exports"
