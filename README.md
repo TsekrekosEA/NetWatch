@@ -2,11 +2,9 @@
 
 A two-stage network intrusion detection system combining statistical baselining with ML anomaly scoring, live WebSocket streaming, IP threat intelligence enrichment, and a Prometheus/Grafana observability stack — built around real packet capture and the CIC-IDS-2018 benchmark dataset.
 
-![demo](images/demo.png)
+![demo](images/dashboard_demo.gif)
 
 ## Architecture
-
-![diagram](images/netwatch_diagram.png)
 
 ## How It Works
 
