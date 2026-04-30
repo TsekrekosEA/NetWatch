@@ -125,6 +125,10 @@ cd infra/terraform
 terraform destroy -var-file=environments/dev.tfvars
 ```
 
+## Single-Node EC2 Deployment (Free Tier)
+
+For a low-cost deployment on a single AWS EC2 instance (e.g., `t2.micro`), see the [EC2 Deployment Guide](docs/deployment_ec2.md). This setup uses Docker Compose and includes instructions for configuring Swap space to handle the 1GB RAM limitation of Free Tier instances.
+
 ## Quick Start — Demo Mode
 
 ```bash
