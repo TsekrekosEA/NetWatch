@@ -6,7 +6,7 @@ This guide provides step-by-step instructions for deploying NetWatch to a produc
 
 Before starting, ensure you have the following tools installed and configured:
 
-- **AWS CLI**: [Installed](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and configured with `aws configure`.
+- **AWS CLI**: [Installed](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and configured.
 - **Terraform** (>= 1.7): [Installed](https://developer.hashicorp.com/terraform/downloads).
 - **kubectl**: [Installed](https://kubernetes.io/docs/tasks/tools/).
 - **Helm** (>= 3): [Installed](https://helm.sh/docs/intro/install/).
@@ -119,7 +119,31 @@ If you wish to deploy the observability stack (Prometheus/Grafana) to K8s:
 
 ---
 
-## 6. Cleanup
+## 6. Troubleshooting: "No valid credential sources found"
+
+If you encounter an error stating `No valid credential sources found` during `terraform plan`, it means Terraform cannot find your AWS credentials.
+
+### Solution 1: AWS Configure (Recommended)
+Run the following command and enter your Access Key ID and Secret Access Key from the AWS Console (IAM -> Users -> YourUser -> Security Credentials):
+```bash
+aws configure
+```
+
+### Solution 2: Environment Variables
+Alternatively, you can export your credentials directly in your terminal:
+```bash
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="wJalrXU..."
+export AWS_REGION="eu-central-1"
+```
+
+### Solution 3: SSO / Named Profiles
+If you use AWS SSO or multiple profiles, ensure you set the `AWS_PROFILE` variable:
+```bash
+export AWS_PROFILE=your-profile-name
+```
+
+## 7. Cleanup
 
 To avoid ongoing AWS costs, destroy the resources when finished:
 
