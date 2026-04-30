@@ -1,6 +1,14 @@
-# Deployment Guide: AWS & Kubernetes (EKS)
+# Deployment Guide: AWS
 
-This guide provides step-by-step instructions for deploying NetWatch to a production-ready environment on AWS using Amazon EKS (Elastic Kubernetes Service) and Terraform.
+NetWatch supports two primary deployment paths on AWS:
+1.  **AWS Free Tier (EC2)**: Best for testing, small-scale deployments, and zero cost. See [EC2 Deployment Guide](./deployment_ec2.md).
+2.  **AWS Kubernetes (EKS)**: Best for production, high availability, and scalability. (See below).
+
+---
+
+## AWS & Kubernetes (EKS)
+
+This section provides step-by-step instructions for deploying NetWatch to a production-ready environment on AWS using Amazon EKS (Elastic Kubernetes Service) and Terraform.
 
 ## 1. Prerequisites
 
